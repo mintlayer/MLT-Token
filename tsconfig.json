@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "lib": ["ES2018", "dom"],
+    "baseUrl": ".",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2018",
+    "outDir": "dist",
+    "resolveJsonModule": true,
+    "esModuleInterop": true
+  },
+  "exclude": ["dist", "node_modules"],
+  "include": [
+    "./tests",
+    "./tasks",
+    "./deploy",
+    "./helpers",
+    "./scripts",
+    "./build/types",
+    "hardhat.config.ts",
+  ]
+}

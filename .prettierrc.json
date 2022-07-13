@@ -1,0 +1,17 @@
+{
+  "useTabs": true,
+  "printWidth": 120,
+  "bracketSpacing": true,
+  "overrides": [
+    {
+      "files": ["*.js", "*.ts", "*.sol"],
+      "options": {
+        "tabWidth": 2,
+        "semi": false,
+        "singleQuote": true,
+        "trailingComma": "all",
+        "explicitTypes": "always"
+      }
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "name": "mlt-token",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Fatima Castiglione Maldonado <castiglionemaldonado@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "task": "npx hardhat",
+    "test": "scripts/test",
+    "build": "scripts/build",
+    "compile": "hardhat compile",
+    "deploy": "npx hardhat deploy",
+    "typechain": "scripts/typechain",
+    "test:gas": "RUN_EVM=true REPORT_GAS=true scripts/test"
+  },
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers@0.3.0-beta.13",
+    "@nomiclabs/hardhat-etherscan": "^3.1.0",
+    "@nomiclabs/hardhat-waffle": "^2.0.3",
+    "@openzeppelin/contracts": "^4.6.0",
+    "@openzeppelin/contracts-upgradeable": "^4.6.0",
+    "@openzeppelin/hardhat-upgrades": "^1.18.0",
+    "@typechain/ethers-v5": "^10.0.0",
+    "@typechain/hardhat": "^6.0.0",
+    "@types/mocha": "^9.1.1",
+    "@types/node": "^17.0.38",
+    "chai": "^4.3.6",
+    "chai-ethers": "^0.0.1",
+    "dotenv": "^16.0.1",
+    "ethereum-waffle": "^3.4.4",
+    "ethers": "^5.6.8",
+    "hardhat": "^2.9.7",
+    "hardhat-deploy": "^0.11.10",
+    "hardhat-gas-reporter": "^1.0.8",
+    "keccak256": "^1.0.6",
+    "merkletreejs": "^0.2.32",
+    "ts-node": "^10.8.0",
+    "typechain": "^8.0.0",
+    "typescript": "^4.7.2"
+  }
+}

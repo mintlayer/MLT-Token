@@ -1,0 +1,4 @@
+#!/bin/bash
+export TYPECHAIN_ON=true
+yarn compile
+npx typechain --target ethers-v5 --out-dir build/types './build/contracts/!(build-info)/**/+([a-zA-Z0-9_]).json'
