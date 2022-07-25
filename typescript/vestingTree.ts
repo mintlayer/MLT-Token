@@ -1,5 +1,4 @@
 import { ALLOCATIONS } from "../constants";
-import type { Options } from "merkletreejs/dist/MerkleTree";
 
 export type AllocationsType = keyof typeof ALLOCATIONS;
 

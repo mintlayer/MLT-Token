@@ -23,6 +23,7 @@ contracts_debugging
 
 # Reports
 /reports
+vesting_schedule.xlsx
 
 # OpenZeppelin
 .openzeppelin/unknown-*.json

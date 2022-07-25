@@ -5,8 +5,8 @@ import { hexToBytes, soliditySha3 } from 'web3-utils';
 
 import {
   ALLOCATIONS,
+  ONE_MONTH_IN_SECONDS,
   ALLOCATION_TOTAL_SUPPLY,
-  ONE_MONTH_IN_MILLISECONDS,
 } from '../constants';
 
 import type {
@@ -107,7 +107,7 @@ export class VestingTree extends MerkleTree {
             const _monthly = monthly[monthIndex];
             const amount = vestingShare * _monthly / TOTAL_USERS;
 
-            const vestingCliff = cliff + (ONE_MONTH_IN_MILLISECONDS * cycle);
+            const vestingCliff = cliff + (ONE_MONTH_IN_SECONDS * cycle);
 
             const _vestingSchedule = {
               amount,

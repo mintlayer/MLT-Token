@@ -1,8 +1,8 @@
 import { VestingTypes } from "typescript/vestingTree"
 
-export const ONE_MONTH_IN_MILLISECONDS = 2592000000; // A month of 30 days is assumed.
+export const ONE_MONTH_IN_SECONDS = 2592000; // A month of 30 days is assumed.
 export const ALLOCATION_TOTAL_SUPPLY = 400_000_000;
-export const VESTING_START_TIMESTAMP = 1663109330000; // Timestamp in milliseconds;
+export const VESTING_START_TIMESTAMP = 1658450304; // Timestamp of vesting start as seconds since the Unix epoch
 
 export const VESTING_TYPES: VestingTypes = {
   unlocked: 'unlocked',
@@ -28,13 +28,13 @@ export const VESTING_TYPES: VestingTypes = {
     unlocking: 0, // 0%
     monthly: [0.05], // 5% monthly over 20 months
     months: [20],
-    cliff: ONE_MONTH_IN_MILLISECONDS * 4, // 4 months represented in milliseconds. Months of 30 days are assumed.
+    cliff: ONE_MONTH_IN_SECONDS * 4, // 4 months represented in milliseconds. Months of 30 days are assumed.
   },
   type5: {
     unlocking: 0, // 0%
     monthly: [0.02, 0.04], // 2% monthly over 10 months, then 4% over 20 months
     months: [10, 20],
-    cliff: ONE_MONTH_IN_MILLISECONDS * 4, // 4 months represented in milliseconds. Months of 30 days are assumed.
+    cliff: ONE_MONTH_IN_SECONDS * 4, // 4 months represented in milliseconds. Months of 30 days are assumed.
   },
 }
 
