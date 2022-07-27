@@ -27,6 +27,7 @@
     "chai": "^4.3.6",
     "chai-ethers": "^0.0.1",
     "date-fns": "^2.28.0",
+    "decimal.js": "^10.3.1",
     "dotenv": "^16.0.1",
     "ethereum-waffle": "^3.4.4",
     "ethereumjs-util": "^7.1.5",

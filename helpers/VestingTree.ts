@@ -3,6 +3,7 @@ import { BN } from 'ethereumjs-util';
 import { MerkleTree } from 'merkletreejs';
 import { hexToBytes, soliditySha3 } from 'web3-utils';
 
+import { Decimal } from './Decimal';
 import {
   ALLOCATIONS,
   ONE_MONTH_IN_SECONDS,
@@ -65,13 +66,13 @@ export class VestingTree extends MerkleTree {
       const { allocationsType, address } = user;
       const { percentage, vestingInfo } = ALLOCATIONS[allocationsType];
 
-      const vestingShare = ALLOCATION_TOTAL_SUPPLY * percentage;
+      const vestingShare = new Decimal(ALLOCATION_TOTAL_SUPPLY).mul(percentage);
 
       // Total users for current allocation type
-      const TOTAL_USERS = userCountByVestingType[allocationsType];
+      const TOTAL_USERS = new Decimal(userCountByVestingType[allocationsType]);
 
       if(vestingInfo == 'unlocked') {
-        const amount = vestingShare / TOTAL_USERS;
+        const amount = vestingShare.div(TOTAL_USERS).toNumber();
 
         const _vestingSchedule = {
           amount,
@@ -88,7 +89,7 @@ export class VestingTree extends MerkleTree {
         const { cliff, monthly, months, unlocking } = vestingInfo;
 
         if(unlocking > 0) {
-          const amount = vestingShare * unlocking / TOTAL_USERS;
+          const amount = vestingShare.mul(unlocking).div(TOTAL_USERS).toNumber();
 
           const _vestingSchedule = {
             amount,
@@ -105,7 +106,7 @@ export class VestingTree extends MerkleTree {
           // Array with the length of the months in which the allocation releases will be made
           [...new Array(month).keys()].forEach((cycle) => {
             const _monthly = monthly[monthIndex];
-            const amount = vestingShare * _monthly / TOTAL_USERS;
+            const amount = vestingShare.mul(_monthly).div(TOTAL_USERS).toNumber();
 
             const vestingCliff = cliff + (ONE_MONTH_IN_SECONDS * cycle);
 

@@ -1,10 +1,11 @@
 import { deployments, ethers } from 'hardhat';
 import { formatEther } from 'ethers/lib/utils';
+
+import { Decimal } from '../helpers/Decimal';
 import { assert, expect } from './utils/chaiSetup';
+import { VestingTree } from '../helpers/VestingTree';
 import { ALLOCATIONS, VESTING_TYPES } from '../constants';
 import { VESTING_USERS } from '../addressbook/vestingAddresses';
-
-import { VestingTree } from '../helpers/VestingTree';
 
 /* types */
 import type { MLTTokenV1 as IMLTToken } from 'build/types';
@@ -71,18 +72,14 @@ describe('Vesting merkle tree', () => {
   it('Total supply of allocations should match with the sum of the merkle tree', async () => {
     const { tree, contracts: { MLTToken }} = await setup();
 
-    const totalAllocations = tree.vestingSchedules.reduce((prev, currentSchedule) => {
-      return prev + currentSchedule.amount;
-    }, 0);
+    const totalAllocations = tree.vestingSchedules
+      .reduce((prev, currentSchedule) => prev.plus(currentSchedule.amount) , new Decimal(0))
+      .toNumber();
 
     const totalSupplyBN = await MLTToken.totalSupply();
     const totalSupply = parseFloat(formatEther(totalSupplyBN));
 
-    // When the distribution of allocations is made, decimal residues may remain. In order to
-    // pass the test, you must have a tolerance margin.
-    const TOLERANCE = 0.1;
-
-    expect(totalAllocations).to.be.within(totalSupply - TOLERANCE, totalSupply)
+    expect(totalAllocations).to.be.lessThanOrEqual(totalSupply)
   });
 
   it('A merkle proof should be checked on the chain', async () => {

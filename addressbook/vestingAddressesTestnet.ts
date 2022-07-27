@@ -6539,6 +6539,104 @@ const PROFILED_USERS: VestingUsers[] = [
     "allocationsType": "companyReserve"
   },
   {
+    "address": "0x5F21a2C733c84d8E20b10160b4969055e6d3658d",
+    "allocationsType": "seed"
+  },
+  {
+    "address": "0xBFaABeefBfF0D67ADa41f591d38116796088d14f",
+    "allocationsType": "preSeed"
+  },
+  {
+    "address": "0x2942ca5A5A93ab66c340094c1A73D2A806eBf58E",
+    "allocationsType": "launchpool"
+  },
+  {
+    "address": "0x6fC57FD4B33aE0FB25d35B589eca4cCf286EDEfE",
+    "allocationsType": "publicSale"
+  },
+  {
+    "address": "0x9cC8617d158938d5BADDffB6cd485fcd66d9Ac13",
+    "allocationsType": "development"
+  },
+  {
+    "address": "0x4300f2FC13F52CEE4747304eF06d08DcD505d2F4",
+    "allocationsType": "companyReserve"
+  },
+  {
+    "address": "0xD907ed7F66C52d52447e18b693972b34a94c1fD6",
+    "allocationsType": "seed"
+  },
+  {
+    "address": "0x02f9d265cAc5Df1c1C65189CbAe70f82e76dad41",
+    "allocationsType": "preSeed"
+  },
+  {
+    "address": "0x96A6d84F4088B40627f1301039677a3b9C9107C6",
+    "allocationsType": "launchpool"
+  },
+  {
+    "address": "0x6E1Cd0d6F35DC9CC752f6ba87aFc03B8c8411b89",
+    "allocationsType": "publicSale"
+  },
+  {
+    "address": "0xcDae0dccC5211Be19Ec7Cb2B15182a29F058FC8E",
+    "allocationsType": "development"
+  },
+  {
+    "address": "0x53bD14244106ee85A0065c26aF243C6415197222",
+    "allocationsType": "companyReserve"
+  },
+]
+const _PROFILED_USERS: VestingUsers[] = [
+  {
+    "address": "0x9b8F900b730dC55d37db7ac73F2Cc56B037168Fd",
+    "allocationsType": "seed"
+  },
+  {
+    "address": "0xe04B51529910749c7dDEDAa486CB8084B9419514",
+    "allocationsType": "preSeed"
+  },
+  {
+    "address": "0xCD19e9F892F7beFD5BECAF6865526fEFE686332f",
+    "allocationsType": "launchpool"
+  },
+  {
+    "address": "0x073B55aC06E37A5404c2359282BdC4D4d54B49a5",
+    "allocationsType": "publicSale"
+  },
+  {
+    "address": "0x6D93bd4a31cEE114937191202A6d01e5C4483BCC",
+    "allocationsType": "development"
+  },
+  {
+    "address": "0x535dc54269BA11aaF5bF9834043411B829b27fbC",
+    "allocationsType": "companyReserve"
+  },
+  {
+    "address": "0x208Ca048d539026E919ce2D5662EF6eDCfe710b5",
+    "allocationsType": "seed"
+  },
+  {
+    "address": "0xb16d9157BA85fb48092fB25e7712f4D937582936",
+    "allocationsType": "preSeed"
+  },
+  {
+    "address": "0x743BF62226fC4211f5E7517B8b52eEf336a26E37",
+    "allocationsType": "launchpool"
+  },
+  {
+    "address": "0xd30c09a201b77Aac0F8cCacD592d3B003689C7db",
+    "allocationsType": "publicSale"
+  },
+  {
+    "address": "0xA86Fc96A531BebFeC772384A1b931F4540a71550",
+    "allocationsType": "development"
+  },
+  {
+    "address": "0x3E7487ce366981A5180e6Da297535EC3e38f7134",
+    "allocationsType": "companyReserve"
+  },
+  {
     "address": "0x965Faad1aD7719CFA46C11367161adFAb0cc094D",
     "allocationsType": "seed"
   },

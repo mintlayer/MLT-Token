@@ -17,6 +17,7 @@ const {
   TYPECHAIN_ON,
   INFURA_API_KEY,
   WALLET_PRIVKEY,
+  ALCHEMY_API_KEY,
   ETHERSCAN_API_KEY,
   COINMARKETCAP_API,
 } = process.env;
@@ -59,6 +60,10 @@ const config: HardhatUserConfig = {
     hardhat: {
       tags: ['local'],
       loggingEnabled: false,
+      forking: {
+        blockNumber: 15200000,
+        url: `https://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_API_KEY}`,
+      }
     },
     ropsten: {
       tags: ['local'],
