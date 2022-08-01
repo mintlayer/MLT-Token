@@ -98,7 +98,7 @@ const config: HardhatUserConfig = {
     user4: 4,
   },
   mocha: {
-    timeout: 1000 * 60 * 60, // 1 hour in milliseconds
+    timeout: 1000 * 60 * 60 * 1, // 1 hour in milliseconds
   }
 }
 

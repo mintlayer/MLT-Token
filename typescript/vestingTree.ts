@@ -34,7 +34,7 @@ export type GroupedUsers = Record<string, VestingSchedule[]>;
 
 export interface VestingSchedule {
   address: string; // Address of beneficiary
-  amount: number; // Amount of tokens to be released
+  amount: string; // Amount of tokens to be released
   vestingCliff: number; // Lock delay for release
 }
 

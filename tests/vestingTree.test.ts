@@ -1,7 +1,6 @@
+import { BigNumber } from 'ethers';
 import { deployments, ethers } from 'hardhat';
-import { formatEther } from 'ethers/lib/utils';
 
-import { Decimal } from '../helpers/Decimal';
 import { assert, expect } from './utils/chaiSetup';
 import { VestingTree } from '../helpers/VestingTree';
 import { ALLOCATIONS, VESTING_TYPES } from '../constants';
@@ -72,14 +71,13 @@ describe('Vesting merkle tree', () => {
   it('Total supply of allocations should match with the sum of the merkle tree', async () => {
     const { tree, contracts: { MLTToken }} = await setup();
 
-    const totalAllocations = tree.vestingSchedules
-      .reduce((prev, currentSchedule) => prev.plus(currentSchedule.amount) , new Decimal(0))
-      .toNumber();
+    const totalAllocations = tree.vestingSchedules.reduce((prev, currentSchedule) => {
+      return prev.add(currentSchedule.amount);
+    }, BigNumber.from(0));
 
-    const totalSupplyBN = await MLTToken.totalSupply();
-    const totalSupply = parseFloat(formatEther(totalSupplyBN));
+    const totalSupply = await MLTToken.totalSupply();
 
-    expect(totalAllocations).to.be.lessThanOrEqual(totalSupply)
+    expect(totalAllocations).to.be.equal(totalSupply)
   });
 
   it('A merkle proof should be checked on the chain', async () => {

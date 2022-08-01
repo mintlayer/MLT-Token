@@ -17,8 +17,8 @@ contract MLTTokenV1 is ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
 	bytes32 public VESTING_TREE_ROOT;
 	uint256 public VESTING_START_TIMESTAMP;
 	/// @dev Record of user withdrawals by cliff
-	// beneficiary => cliff => claimed
-	mapping(address => mapping(uint256 => bool)) public vestingClaimed;
+	// beneficiary => amount => cliff => claimed
+	mapping(address => mapping(uint256 => mapping(uint256 => bool))) public vestingClaimed;
 	/* END VARIABLES */
 
 	/// @custom:oz-upgrades-unsafe-allow constructor
@@ -62,34 +62,33 @@ contract MLTTokenV1 is ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
 		return MerkleProofUpgradeable.verify(proof, VESTING_TREE_ROOT, _leaf);
 	}
 
-	function releaseVested(address _beneficiary, bytes calldata _proof) external {
-		_releaseVested(_beneficiary, _proof);
+	function releaseVested(address _beneficiary, bytes calldata _proofWithMetadata) external {
+		_releaseVested(_beneficiary, _proofWithMetadata);
 	}
 
-	function _releaseVested(address _beneficiary, bytes calldata _proof) internal {
-		require(_beneficiary != address(0), 'Cannot be withdaw from the zero address');
+	function _releaseVested(address _beneficiary, bytes calldata _proofWithMetadata) internal {
+		require(_beneficiary != address(0), 'Cannot withdraw from the zero address');
 
 		bytes32[] memory meta;
 		bytes32[] memory proof;
 
-		(meta, proof) = splitIntoBytes32(_proof, 2);
+		require(_proofWithMetadata.length >= 96, "Byte array too short");
+		(meta, proof) = splitIntoBytes32(_proofWithMetadata, 2);
 
 		uint256 _amount = uint256(meta[0]);
 		uint256 _cliff = uint256(meta[1]);
-
 		bytes32 _leaf = keccak256(abi.encodePacked(_beneficiary, _amount, _cliff));
 
 		require(
 			MerkleProofUpgradeable.verify(proof, VESTING_TREE_ROOT, _leaf), 'Invalid merkle proof'
 		);
 
-		_amount = _amount * 10 ** decimals();
 		_cliff = VESTING_START_TIMESTAMP.add(_cliff);
 
 		require(block.timestamp >= _cliff, "It's not a release date yet");
-		require(!vestingClaimed[_beneficiary][_cliff], 'Tokens already claimed');
+		require(!vestingClaimed[_beneficiary][_amount][_cliff], 'Tokens already claimed');
 
-		vestingClaimed[_beneficiary][_cliff] = true;
+		vestingClaimed[_beneficiary][_amount][_cliff] = true;
 		_transfer(address(this), _beneficiary, _amount);
 	}
 

@@ -1,12 +1,13 @@
 import XLSX from 'xlsx';
 import { formatISO } from 'date-fns';
 import { task } from 'hardhat/config';
+
 import { VestingTree } from '../helpers/VestingTree';
 import { VESTING_START_TIMESTAMP } from '../constants';
 import { VESTING_USERS } from '../addressbook/vestingAddresses';
 
 /* types */
-import { HardhatRuntimeEnvironment, TaskArguments } from "hardhat/types";
+import type { HardhatRuntimeEnvironment, TaskArguments } from "hardhat/types";
 
 task('merkletree')
   .setAction(async (taskArguments: TaskArguments, hre: HardhatRuntimeEnvironment) => {
@@ -14,6 +15,7 @@ task('merkletree')
 
     const root = tree.getHexRoot();
     console.log('tree root:', root);
+    console.log('quantity vestingSchedule', tree.vestingSchedules.length);
   })
 
 task('merkletree-export')
