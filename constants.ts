@@ -1,5 +1,6 @@
 import { VestingTypes } from "typescript/vestingTree"
 
+export const BATCH_SIZE = 500;
 export const ONE_MONTH_IN_SECONDS = 2592000; // A month of 30 days is assumed.
 export const ALLOCATION_TOTAL_SUPPLY = 400_000_000;
 export const VESTING_START_TIMESTAMP = 1658450304; // Timestamp of vesting start as seconds since the Unix epoch
@@ -47,7 +48,7 @@ export const ALLOCATIONS = {
     percentage: 0.1365, // 13.65%
     vestingInfo: VESTING_TYPES.type2
   },
-  launchpool: {
+  fairLaunch: {
     percentage: 0.0315, // 3.15%
     vestingInfo: VESTING_TYPES.type2
   },

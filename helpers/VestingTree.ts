@@ -2,9 +2,9 @@ import keccak256 from 'keccak256';
 import { BigNumber } from 'ethers';
 import { BN } from 'ethereumjs-util';
 import { MerkleTree } from 'merkletreejs';
+import { parseEther } from 'ethers/lib/utils';
 import { hexToBytes, soliditySha3 } from 'web3-utils';
 
-import { parseEther } from 'ethers/lib/utils';
 import {
   ALLOCATIONS,
   ONE_MONTH_IN_SECONDS,
@@ -14,6 +14,7 @@ import {
 import type {
   VestingUsers,
   GroupedUsers,
+  IMappingCliff,
   VestingSchedule,
   VestingTreeParams,
   UserCountByVestingType,
@@ -178,5 +179,25 @@ export class VestingTree extends MerkleTree {
     }
 
     return '0x' + arr.map(el => el.toString('hex')).join('');
+  }
+
+  getCliffs() {
+    const _cliff: number[] = [];
+    const mappingCliff: { [cliff: string]: boolean } = {};
+
+    this.vestingSchedules.forEach((vestingSchdule) => {
+      const { vestingCliff } = vestingSchdule;
+
+      if(!mappingCliff[vestingCliff]) {
+        _cliff.push(vestingCliff);
+        mappingCliff[vestingCliff] = true;
+      }
+    });
+
+    return _cliff.sort((a, b) => {
+      if(a < b) return -1;
+      if(a > b) return 1;
+      return 0;
+    })
   }
 }

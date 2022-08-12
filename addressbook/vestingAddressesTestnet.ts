@@ -7,10 +7,10 @@ const PUBLIC_SALE: VestingUsers[] = [
   }
 ];
 
-const LAUNCH_POOL: VestingUsers[] = [
+const FAIR_POOL: VestingUsers[] = [
   {
     "address": "0xD87db2d2ec8F7790DFEf560745269Dbb4e8ce1BD",
-    "allocationsType": "launchpool"
+    "allocationsType": "fairLaunch"
   }
 ];
 
@@ -1746,7 +1746,7 @@ const PROFILED_USERS: VestingUsers[] = [
 export const VESTING_USERS_TESTNET: VestingUsers[] = [
   ...VC,
   ...PUBLIC_SALE,
-  ...LAUNCH_POOL,
+  ...FAIR_POOL,
   ...CONTRIBUTORS,
   ...PROFILED_USERS,
 ];

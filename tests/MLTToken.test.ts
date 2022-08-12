@@ -3,12 +3,13 @@ import { deployments, ethers, getNamedAccounts } from 'hardhat';
 
 import { assert, expect } from './utils/chaiSetup';
 import { VestingTree } from '../helpers/VestingTree';
-import { VESTING_START_TIMESTAMP } from '../constants';
 import { VESTING_USERS } from '../addressbook/vestingAddresses';
+import { BATCH_SIZE, VESTING_START_TIMESTAMP } from '../constants';
 
 /* types */
 import type { Accounts } from '../typescript/hardhat';
 import type { MLTTokenV1 as IMLTToken } from 'build/types';
+import type { IBatchesVesting } from 'typescript/vestingTree';
 
 let tree: VestingTree | null = null;
 
@@ -43,7 +44,7 @@ describe('MLTToken contract', () => {
     const { contracts: { MLTToken }} = await setup();
 
     await expect(MLTToken.releaseVested(ethers.constants.AddressZero, randomHex(32)))
-    .to.revertedWith('Cannot withdraw from the zero address')
+    .to.revertedWith('Cannot withdraw to zero address')
   });
 
   it('Should fail if the merkle proof is invalid', async () => {
@@ -76,7 +77,7 @@ describe('MLTToken contract', () => {
     const proofWithMetadata = tree.getHexProofWithMetadata(vestingSchedule);
 
     await expect(MLTToken.releaseVested(vestingSchedule.address, proofWithMetadata))
-      .to.revertedWith("It's not a release date yet");
+      .to.revertedWith("The release date has not yet arrived");
   });
 
   it('Successfully claim vesting. It will fail if you try to claim multiple times', async () => {
@@ -161,4 +162,33 @@ describe('MLTToken contract', () => {
 
     expect(allocationBalance).to.be.equal(0);
   });
+
+  it('Batches release', async () => {
+    const { contracts: { MLTToken } } = await setup();
+
+    const batches: IBatchesVesting[] = [];
+
+    await ethers.provider.send('evm_setNextBlockTimestamp', [VESTING_START_TIMESTAMP * 2]);
+    await ethers.provider.send('evm_mine', []);
+
+    for(let i = 0; i < tree.vestingSchedules.length; i += BATCH_SIZE) {
+      const proof = [];
+      const beneficiaries = [];
+
+      tree.vestingSchedules.slice(i, i + BATCH_SIZE).forEach((vestingSchedule) => {
+        beneficiaries.push(vestingSchedule.address);
+        proof.push(tree.getHexProofWithMetadata(vestingSchedule));
+      })
+
+      batches.push({ proof, beneficiaries });
+    }
+
+    const gasLimit = 30_000_000;
+
+    const batchesPromises = batches.map(({ proof, beneficiaries }) => {
+      return MLTToken.batchReleaseVested(beneficiaries, proof, { gasLimit });
+    })
+
+    await Promise.all(batchesPromises);
+  })
 })

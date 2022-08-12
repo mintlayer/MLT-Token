@@ -41,3 +41,10 @@ export interface VestingSchedule {
 export interface VestingTreeParams {
   users: VestingUsers[];
 }
+
+export interface IBatchesVesting {
+  proof: string[];
+  beneficiaries: string[];
+}
+
+export type IMappingCliff = { [timestamp: string]: number };
