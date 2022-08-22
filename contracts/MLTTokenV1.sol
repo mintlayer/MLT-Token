@@ -13,6 +13,13 @@ contract MLTTokenV1 is ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
 	using SafeMathUpgradeable for uint256;
 	using SafeERC20Upgradeable for IERC20Upgradeable;
 
+	struct User {
+		address beneficiary;
+		uint256 amount;
+		uint256 cliff;
+		bytes32[] proof;
+	}
+
 	/* BEGIN VARIABLES */
 	bytes32 public VESTING_TREE_ROOT;
 	uint256 public VESTING_START_TIMESTAMP;
@@ -56,102 +63,75 @@ contract MLTTokenV1 is ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
 	/**
 	 * @dev Verify the validity of merkle proof associated with an address
 	 * @param _beneficiary Address of beneficiary
-	 * @param _proofWithMetadata Merkle proof with the metadata to reconstruct the leaf hash
+	 * @param _amount Amount vested tokens to be released
+	 * @param _cliff Lock delay for release
+	 * @param _proof Merkle proof
 	**/
 	function verifyProof(
 		address _beneficiary,
-		bytes calldata _proofWithMetadata
+		uint256 _amount,
+		uint256 _cliff,
+		bytes32[] calldata _proof
 	) external view returns(bool) {
-		bytes32[] memory meta;
-		bytes32[] memory proof;
-		(meta, proof) = splitIntoBytes32(_proofWithMetadata, 2);
-
-		uint256 _amount = uint256(meta[0]);
-		uint256 _cliff = uint256(meta[1]);
 		bytes32 _leaf = keccak256(abi.encodePacked(_beneficiary, _amount, _cliff));
-
-		return MerkleProofUpgradeable.verify(proof, VESTING_TREE_ROOT, _leaf);
+		return MerkleProofUpgradeable.verify(_proof, VESTING_TREE_ROOT, _leaf);
 	}
 
 	/**
 	 * @dev Release vesting in batches
-	 * @param _beneficiaries An array of beneficiaries addresses
-	 * @param _proofs An array of merkle proof
+	 * @param _users Array of users
 	**/
-	function batchReleaseVested(
-		address[] calldata _beneficiaries,
-		bytes[] calldata _proofs
-	) external {
-		for(uint256 i = 0; i < _proofs.length; i++) {
-			try this.releaseVested(_beneficiaries[i], _proofs[i]) {} catch {}
+	function batchReleaseVested(User[] calldata _users) external {
+		for(uint256 i = 0; i < _users.length; i++) {
+			User calldata _user = _users[i];
+			try this.releaseVested(_user.beneficiary, _user.amount, _user.cliff, _user.proof) {}
+			catch {}
 		}
 	}
 
 	/**
 	 * @dev Release vesting associated with an address
 	 * @param _beneficiary Address of beneficiary
-	 * @param _proofWithMetadata Merkle proof with the metadata to reconstruct the leaf hash
+	 * @param _amount Amount vested tokens to be released
+	 * @param _cliff Lock delay for release
+	 * @param _proof Merkle proof
 	**/
-	function releaseVested(address _beneficiary, bytes calldata _proofWithMetadata) external {
-		_releaseVested(_beneficiary, _proofWithMetadata);
+	function releaseVested(
+		address _beneficiary,
+		uint256 _amount,
+		uint256 _cliff,
+		bytes32[] calldata _proof
+	) external {
+		_releaseVested(_beneficiary, _amount, _cliff, _proof);
 	}
 
 	/**
 	 * @dev Release vesting associated with an address
 	 * @param _beneficiary Address of beneficiary
-	 * @param _proofWithMetadata Merkle proof with the metadata to reconstruct the leaf hash
+	 * @param _amount Amount vested tokens to be released
+	 * @param _cliff Lock delay for release
+	 * @param _proof Merkle proof
 	**/
-	function _releaseVested(address _beneficiary, bytes calldata _proofWithMetadata) internal {
-		require(_beneficiary != address(0), 'Cannot withdraw to zero address');
-
-		bytes32[] memory meta;
-		bytes32[] memory proof;
-
-		require(_proofWithMetadata.length >= 96, "Byte array too short");
-		(meta, proof) = splitIntoBytes32(_proofWithMetadata, 2);
-
-		uint256 _amount = uint256(meta[0]);
-		uint256 _cliff = uint256(meta[1]);
+	function _releaseVested(
+		address _beneficiary,
+		uint256 _amount,
+		uint256 _cliff,
+		bytes32[] calldata _proof
+	) internal {
 		bytes32 _leaf = keccak256(abi.encodePacked(_beneficiary, _amount, _cliff));
 
 		require(
-			MerkleProofUpgradeable.verify(proof, VESTING_TREE_ROOT, _leaf), 'Invalid merkle proof'
+			MerkleProofUpgradeable.verify(_proof, VESTING_TREE_ROOT, _leaf), 'Invalid merkle proof'
 		);
 
-		_cliff = VESTING_START_TIMESTAMP.add(_cliff);
-
 		require(!vestingClaimed[_leaf], 'Tokens already claimed');
-		require(block.timestamp >= _cliff, "The release date has not yet arrived");
+		require(
+			block.timestamp >= VESTING_START_TIMESTAMP.add(_cliff),
+			"The release date has not yet arrived"
+		);
 
 		vestingClaimed[_leaf] = true;
 		_transfer(address(this), _beneficiary, _amount);
-	}
-
-	/**
-	 * @dev Split `_byteArray` into two arrays of bytes32 where the first array will be of size
-	 * `_numBytes32` and the remainder will be stored in the second array
-	 * @param _byteArray bytes to be split
-	 * @param _numBytes32 array size
-	**/
-	function splitIntoBytes32(bytes memory _byteArray, uint256 _numBytes32)
-		internal
-		pure
-		returns (bytes32[] memory bytes32Array, bytes32[] memory remainder)
-	{
-		require(_byteArray.length <= 1600, "Byte array too big");
-
-		bytes32 _bytes32;
-		bytes32Array = new bytes32[](_numBytes32);
-		remainder = new bytes32[](_byteArray.length.sub(_numBytes32.mul(32)).div(32));
-
-		for(uint256 k = 32; k <= _byteArray.length; k = k.add(32)) {
-			assembly { _bytes32 := mload(add(_byteArray, k)) }
-			if (k <= _numBytes32 * 32) {
-				bytes32Array[k.sub(32).div(32)] = _bytes32;
-			} else {
-				remainder[k.sub(_numBytes32.add(1).mul(32)).div(32)] = _bytes32;
-			}
-		}
 	}
 
 	function _authorizeUpgrade(address) internal override onlyOwner {}

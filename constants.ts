@@ -1,9 +1,47 @@
-import { VestingTypes } from "typescript/vestingTree"
+import * as dotenv from 'dotenv';
+dotenv.config();
 
-export const BATCH_SIZE = 500;
-export const ONE_MONTH_IN_SECONDS = 2592000; // A month of 30 days is assumed.
+import { parseEther } from 'ethers/lib/utils';
+
+/* types */
+import type { VestingTypes } from "typescript/vestingTree";
+
+export const {
+  REPORT_GAS,
+  TYPECHAIN_ON,
+  INFURA_API_KEY,
+  WALLET_PRIVKEY,
+  ALCHEMY_API_KEY,
+  ETHERSCAN_API_KEY,
+  COINMARKETCAP_API,
+} = process.env;
+
+export const IS_PRODUCTION = false;
+
+if(IS_PRODUCTION) {
+  throw new Error('Before moving to productive environment run a double validation of the variables/settings and then remove this error');
+}
+
+export const BATCH_SIZE = 50;
+export const GAS_LIMIT = 3_000_000;
+
+export const ONE_MONTH_IN_SECONDS = IS_PRODUCTION
+  // (2592000) A month of 30 days is assumed.
+  ? 60 * 60 * 24 * 30
+  // (360) For testing/simulation purposes, a month is represented as an hour. With the
+  // following scalar representation we can have a period of 12 months (one year) in 12 hours
+  : 60 * 60;
+
 export const ALLOCATION_TOTAL_SUPPLY = 400_000_000;
-export const VESTING_START_TIMESTAMP = 1658450304; // Timestamp of vesting start as seconds since the Unix epoch
+
+// Timestamp of vesting start as seconds since the Unix epoch
+export const VESTING_START_TIMESTAMP = IS_PRODUCTION
+  ? null
+  : Math.ceil(+new Date() / 1000);
+
+if(IS_PRODUCTION && !VESTING_START_TIMESTAMP) {
+  throw new Error('No date was defined to start the vesting');
+}
 
 export const VESTING_TYPES: VestingTypes = {
   unlocked: 'unlocked',
@@ -39,49 +77,63 @@ export const VESTING_TYPES: VestingTypes = {
   },
 }
 
+export const POOLS_SUPPLY = {
+  preSeed: 2_500_000,
+  seed: 54_600_000,
+  fairLaunch: 12_605_042,
+  publicSale: 22_000_000,
+  marketing: 48_000_000,
+  longVesting: 52_000_000,
+  shortVesting: 26_000_000,
+  development: 40_000_000,
+  community: 20_000_000,
+  companyReserve: 72_294_958,
+  teamAndAdvisors: 50_000_000,
+}
+
 export const ALLOCATIONS = {
   preSeed: {
-    percentage: 0.0063, // 0.63%
+    percentage: parseEther(`${POOLS_SUPPLY.preSeed / ALLOCATION_TOTAL_SUPPLY}`),
     vestingInfo: VESTING_TYPES.type4
   },
   seed: {
-    percentage: 0.1365, // 13.65%
+    percentage: parseEther(`${POOLS_SUPPLY.seed / ALLOCATION_TOTAL_SUPPLY}`),
     vestingInfo: VESTING_TYPES.type2
   },
   fairLaunch: {
-    percentage: 0.0315, // 3.15%
+    percentage: parseEther(`${POOLS_SUPPLY.fairLaunch / ALLOCATION_TOTAL_SUPPLY}`),
     vestingInfo: VESTING_TYPES.type2
   },
   publicSale: {
-    percentage: 0.055, // 5.5%
+    percentage: parseEther(`${POOLS_SUPPLY.publicSale / ALLOCATION_TOTAL_SUPPLY}`),
     vestingInfo: VESTING_TYPES.unlocked
   },
   marketing: {
-    percentage: 0.12, // 12%
+    percentage: parseEther(`${POOLS_SUPPLY.marketing / ALLOCATION_TOTAL_SUPPLY}`),
     vestingInfo: VESTING_TYPES.type1
   },
   longVesting: {
-    percentage: 0.13, // 13%
+    percentage: parseEther(`${POOLS_SUPPLY.longVesting / ALLOCATION_TOTAL_SUPPLY}`),
     vestingInfo: VESTING_TYPES.type5
   },
   shortVesting: {
-    percentage: 0.065, // 6.50%
+    percentage: parseEther(`${POOLS_SUPPLY.shortVesting / ALLOCATION_TOTAL_SUPPLY}`),
     vestingInfo: VESTING_TYPES.type2
   },
   development: {
-    percentage: 0.1, // 10%
+    percentage: parseEther(`${POOLS_SUPPLY.development / ALLOCATION_TOTAL_SUPPLY}`),
     vestingInfo: VESTING_TYPES.type4
   },
   community: {
-    percentage: 0.05, // 5%
+    percentage: parseEther(`${POOLS_SUPPLY.community / ALLOCATION_TOTAL_SUPPLY}`),
     vestingInfo: VESTING_TYPES.type3
   },
   companyReserve: {
-    percentage: 0.1807, // 18.07%
+    percentage: parseEther(`${POOLS_SUPPLY.companyReserve / ALLOCATION_TOTAL_SUPPLY}`),
     vestingInfo: VESTING_TYPES.type5
   },
   teamAndAdvisors: {
-    percentage: 0.125, // 12.5%
+    percentage: parseEther(`${POOLS_SUPPLY.teamAndAdvisors / ALLOCATION_TOTAL_SUPPLY}`),
     vestingInfo: VESTING_TYPES.type4
   },
 }

@@ -1,3 +1,4 @@
+import { BigNumber } from "ethers";
 import { ALLOCATIONS } from "../constants";
 
 export type AllocationsType = keyof typeof ALLOCATIONS;
@@ -20,15 +21,15 @@ export type VestingTypeKeys =
 export type VestingTypes = Record<VestingTypeKeys, VestingType | 'unlocked'>;
 
 export interface VestingUsers {
+  weight?: BigNumber; // Percentage that corresponds to the user
+  amount?: BigNumber; // Amount of tokens to be awarded. IMPORTANT: if this value is present it must have priority over the weight (%)
   address: string;
   allocationsType: AllocationsType;
 }
 
-type PartialRecord<K extends keyof any, T> = {
+export type PartialRecord<K extends keyof any, T> = {
   [P in K]?: T;
 };
-
-export type UserCountByVestingType = PartialRecord<AllocationsType, number>;
 
 export type GroupedUsers = Record<string, VestingSchedule[]>;
 
@@ -41,10 +42,3 @@ export interface VestingSchedule {
 export interface VestingTreeParams {
   users: VestingUsers[];
 }
-
-export interface IBatchesVesting {
-  proof: string[];
-  beneficiaries: string[];
-}
-
-export type IMappingCliff = { [timestamp: string]: number };

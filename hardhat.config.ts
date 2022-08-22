@@ -1,9 +1,4 @@
-import * as dotenv from 'dotenv';
-dotenv.config();
-
-import { HardhatUserConfig } from 'hardhat/types';
-
-// Plugins
+/* plugins */
 import 'hardhat-deploy';
 import '@typechain/hardhat';
 import 'hardhat-gas-reporter';
@@ -12,17 +7,21 @@ import '@nomiclabs/hardhat-ethers';
 import '@nomiclabs/hardhat-etherscan';
 import '@openzeppelin/hardhat-upgrades';
 
-const {
+/* types */
+import type { HardhatUserConfig } from 'hardhat/types';
+
+import {
   REPORT_GAS,
   TYPECHAIN_ON,
+  IS_PRODUCTION,
   INFURA_API_KEY,
   WALLET_PRIVKEY,
   ALCHEMY_API_KEY,
   ETHERSCAN_API_KEY,
   COINMARKETCAP_API,
-} = process.env;
+} from './constants';
 
-// Tasks
+/* tasks */
 if(!TYPECHAIN_ON) {
   require('./tasks/helpers');
   require('./tasks/merketree');
@@ -49,7 +48,7 @@ const config: HardhatUserConfig = {
         settings: {
           optimizer: {
             enabled: true,
-            runs: 200,
+            runs: 10000,
           },
         },
       },
@@ -61,20 +60,34 @@ const config: HardhatUserConfig = {
       tags: ['local'],
       loggingEnabled: false,
       forking: {
-        blockNumber: 15200000,
+        // blockNumber: 15200000,
         url: `https://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_API_KEY}`,
       }
     },
     ropsten: {
-      tags: ['local'],
+      tags: ['staging'],
       loggingEnabled: false,
       accounts: [ WALLET_PRIVKEY ],
       url: getProviderInfuraURL('ropsten'),
     },
     rinkeby: {
-      tags: ['local'],
+      tags: ['staging'],
       accounts: [ WALLET_PRIVKEY ],
       url: getProviderInfuraURL('rinkeby'),
+    },
+    fuji: {
+      chainId: 43113,
+      tags: ['staging'],
+      loggingEnabled: true,
+      accounts: [ WALLET_PRIVKEY ],
+      url: 'https://api.avax-test.network/ext/bc/C/rpc',
+    },
+    fantomtestnet: {
+      chainId: 4002,
+      tags: ['staging'],
+      loggingEnabled: true,
+      url: "https://rpc.testnet.fantom.network",
+      accounts: [ WALLET_PRIVKEY ],
     },
   },
   typechain: {

@@ -1,15 +1,13 @@
-import { randomHex } from 'web3-utils';
 import { deployments, ethers, getNamedAccounts } from 'hardhat';
 
 import { assert, expect } from './utils/chaiSetup';
+import { BATCH_SIZE, GAS_LIMIT } from '../constants';
 import { VestingTree } from '../helpers/VestingTree';
 import { VESTING_USERS } from '../addressbook/vestingAddresses';
-import { BATCH_SIZE, VESTING_START_TIMESTAMP } from '../constants';
 
 /* types */
 import type { Accounts } from '../typescript/hardhat';
 import type { MLTTokenV1 as IMLTToken } from 'build/types';
-import type { IBatchesVesting } from 'typescript/vestingTree';
 
 let tree: VestingTree | null = null;
 
@@ -40,83 +38,89 @@ describe('MLTToken contract', () => {
     assert.ok(MLTToken.address);
   });
 
-  it('Should fail if trying to release vesting to address 0x', async () => {
-    const { contracts: { MLTToken }} = await setup();
-
-    await expect(MLTToken.releaseVested(ethers.constants.AddressZero, randomHex(32)))
-    .to.revertedWith('Cannot withdraw to zero address')
-  });
-
   it('Should fail if the merkle proof is invalid', async () => {
-    const { contracts: { MLTToken }, accounts } = await setup();
+    const { contracts: { MLTToken } } = await setup();
 
-    await expect(MLTToken.releaseVested(accounts.deployer, randomHex(32)))
-    .to.revertedWith('Byte array too short')
-
-    await expect(MLTToken.releaseVested(accounts.deployer, randomHex(32 * 51)))
-    .to.revertedWith('Byte array too big');
-
-    await expect(MLTToken.releaseVested(accounts.deployer, randomHex(32 * 5)))
+    await expect(MLTToken.releaseVested(ethers.constants.AddressZero, 0, 0, []))
     .to.revertedWith('Invalid merkle proof');
   });
 
   it('Should fail if it is not yet the release date', async () => {
     const { contracts: { MLTToken } } = await setup();
 
-    const _VESTING_START_TIMESTAMP = await MLTToken.VESTING_START_TIMESTAMP();
-    expect(VESTING_START_TIMESTAMP).to.be.equal(_VESTING_START_TIMESTAMP);
+    const VESTING_TIMESTAMP = await MLTToken.VESTING_START_TIMESTAMP();
 
     const blockNumber = await ethers.provider.getBlockNumber();
     const block = await ethers.provider.getBlock(blockNumber);
     const blockTimestamp = block.timestamp;
 
     const vestingSchedule = tree.vestingSchedules.find((item) => {
-      return blockTimestamp < VESTING_START_TIMESTAMP + item.vestingCliff;
+      return blockTimestamp < VESTING_TIMESTAMP.add(item.vestingCliff).toNumber();
     });
 
-    const proofWithMetadata = tree.getHexProofWithMetadata(vestingSchedule);
-
-    await expect(MLTToken.releaseVested(vestingSchedule.address, proofWithMetadata))
+    if(vestingSchedule) {
+      await expect(
+        MLTToken.releaseVested(
+          vestingSchedule.address,
+          vestingSchedule.amount,
+          vestingSchedule.vestingCliff,
+          tree.getHexProof(tree.hash(vestingSchedule))
+        )
+      )
       .to.revertedWith("The release date has not yet arrived");
+    }
   });
 
   it('Successfully claim vesting. It will fail if you try to claim multiple times', async () => {
       const { contracts: { MLTToken } } = await setup();
 
-      const _VESTING_START_TIMESTAMP = await MLTToken.VESTING_START_TIMESTAMP();
-      expect(VESTING_START_TIMESTAMP).to.be.equal(_VESTING_START_TIMESTAMP);
+      const VESTING_TIMESTAMP = await MLTToken.VESTING_START_TIMESTAMP();
 
       const blockNumber = await ethers.provider.getBlockNumber();
       const block = await ethers.provider.getBlock(blockNumber);
       const blockTimestamp = block.timestamp;
 
-      const vestingSchedule = tree.vestingSchedules.find((item) => {
-        return blockTimestamp >= VESTING_START_TIMESTAMP + item.vestingCliff;
-      });
+
+      const vestingSchedule = tree.vestingSchedules[0];
+
+      const timestamp = VESTING_TIMESTAMP.add(vestingSchedule.vestingCliff).toNumber();
+      if(blockTimestamp < timestamp) {
+        await ethers.provider.send('evm_setNextBlockTimestamp', [ timestamp ]);
+        await ethers.provider.send('evm_mine', []);
+      }
 
       const userBalBefore = await MLTToken.balanceOf(vestingSchedule.address);
-      const proofWithMetadata = tree.getHexProofWithMetadata(vestingSchedule);
+      const proof = tree.getHexProof(tree.hash(vestingSchedule));
 
-      await MLTToken.releaseVested(vestingSchedule.address, proofWithMetadata);
+      await MLTToken.releaseVested(
+        vestingSchedule.address,
+        vestingSchedule.amount,
+        vestingSchedule.vestingCliff,
+        proof
+      );
 
       const userBalAfter = await MLTToken.balanceOf(vestingSchedule.address);
 
       expect(userBalAfter).to.be.equal(userBalBefore.add(vestingSchedule.amount));
 
-      await expect(MLTToken.releaseVested(vestingSchedule.address, proofWithMetadata))
-        .to.revertedWith('Tokens already claimed');
+      await expect(MLTToken.releaseVested(
+        vestingSchedule.address,
+        vestingSchedule.amount,
+        vestingSchedule.vestingCliff,
+        proof
+      ))
+      .to.revertedWith('Tokens already claimed');
   });
 
   it('All vesting should be released', async () => {
     const { contracts: { MLTToken } } = await setup();
 
-    const _VESTING_START_TIMESTAMP = await MLTToken.VESTING_START_TIMESTAMP();
-    expect(VESTING_START_TIMESTAMP).to.be.equal(_VESTING_START_TIMESTAMP);
+    const VESTING_TIMESTAMP = await MLTToken.VESTING_START_TIMESTAMP();
 
-    let currentTimestamp = VESTING_START_TIMESTAMP;
+    let currentTimestamp = VESTING_TIMESTAMP.toNumber();
 
     tree.vestingSchedules.forEach((vestingSchedule) => {
-      const timestampTMP = VESTING_START_TIMESTAMP + vestingSchedule.vestingCliff;
+      const timestampTMP = VESTING_TIMESTAMP.add(vestingSchedule.vestingCliff).toNumber();
 
       if(currentTimestamp <= timestampTMP) {
         currentTimestamp = timestampTMP;
@@ -139,17 +143,29 @@ describe('MLTToken contract', () => {
 
       vestingSchedulePromises.push(new Promise(async (resolve) => {
         for(const vestingSchedule of user) {
-          const userBalBefore = await MLTToken.balanceOf(vestingSchedule.address);
-          const proofWithMetadata = tree.getHexProofWithMetadata(vestingSchedule);
+          const { address, amount, vestingCliff } = vestingSchedule;
 
-          await MLTToken.releaseVested(vestingSchedule.address, proofWithMetadata);
+          const userBalBefore = await MLTToken.balanceOf(vestingSchedule.address);
+
+          await MLTToken.releaseVested(
+            address,
+            amount,
+            vestingCliff,
+            tree.getHexProof(tree.hash(vestingSchedule))
+          );
 
           const userBalAfter = await MLTToken.balanceOf(vestingSchedule.address);
 
           expect(userBalAfter).to.be.equal(userBalBefore.add(vestingSchedule.amount));
 
-          await expect(MLTToken.releaseVested(vestingSchedule.address, proofWithMetadata))
-            .to.revertedWith('Tokens already claimed');
+          await expect(
+            MLTToken.releaseVested(
+              address,
+              amount,
+              vestingCliff,
+              tree.getHexProof(tree.hash(vestingSchedule))
+            )
+          ).to.revertedWith('Tokens already claimed');
         }
 
         resolve(true);
@@ -166,27 +182,33 @@ describe('MLTToken contract', () => {
   it('Batches release', async () => {
     const { contracts: { MLTToken } } = await setup();
 
-    const batches: IBatchesVesting[] = [];
+    const batches: IMLTToken.UserStruct[][] = [];
 
-    await ethers.provider.send('evm_setNextBlockTimestamp', [VESTING_START_TIMESTAMP * 2]);
+    const VESTING_TIMESTAMP = await MLTToken.VESTING_START_TIMESTAMP();
+
+    const nextBlockTimestamp = VESTING_TIMESTAMP.mul(2).toNumber();
+    await ethers.provider.send('evm_setNextBlockTimestamp', [ nextBlockTimestamp ]);
     await ethers.provider.send('evm_mine', []);
 
     for(let i = 0; i < tree.vestingSchedules.length; i += BATCH_SIZE) {
-      const proof = [];
-      const beneficiaries = [];
+      const users: IMLTToken.UserStruct[] = [];
 
       tree.vestingSchedules.slice(i, i + BATCH_SIZE).forEach((vestingSchedule) => {
-        beneficiaries.push(vestingSchedule.address);
-        proof.push(tree.getHexProofWithMetadata(vestingSchedule));
+        const { address, amount, vestingCliff } = vestingSchedule;
+
+        users.push({
+          beneficiary: address,
+          amount,
+          cliff: vestingCliff,
+          proof: tree.getHexProof(tree.hash(vestingSchedule))
+        })
       })
 
-      batches.push({ proof, beneficiaries });
+      batches.push(users);
     }
 
-    const gasLimit = 30_000_000;
-
-    const batchesPromises = batches.map(({ proof, beneficiaries }) => {
-      return MLTToken.batchReleaseVested(beneficiaries, proof, { gasLimit });
+    const batchesPromises = batches.map((users) => {
+      return MLTToken.batchReleaseVested(users, { gasLimit: GAS_LIMIT });
     })
 
     await Promise.all(batchesPromises);

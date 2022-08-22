@@ -17,7 +17,6 @@ bin/
 .env
 .DS_Store
 .vscode
-deployments
 debbuging.js
 contracts_debugging
 

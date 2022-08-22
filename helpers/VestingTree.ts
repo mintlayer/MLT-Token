@@ -14,10 +14,8 @@ import {
 import type {
   VestingUsers,
   GroupedUsers,
-  IMappingCliff,
   VestingSchedule,
   VestingTreeParams,
-  UserCountByVestingType,
 } from '../typescript/vestingTree';
 
 function vestingScheduleHash(item: VestingSchedule) {
@@ -25,8 +23,8 @@ function vestingScheduleHash(item: VestingSchedule) {
 
   const hash = soliditySha3(
     { t: 'address', v: item.address },
-    {t: "uint256", v: item.amount },
-    {t: "uint256", v: item.vestingCliff },
+    { t: "uint256", v: item.amount },
+    { t: "uint256", v: item.vestingCliff },
   )
 
   return hash;
@@ -44,63 +42,42 @@ export class VestingTree extends MerkleTree {
     const groupedUsers: GroupedUsers = {};
     const vestingSchedules: VestingSchedule[] = [];
 
-    const userCountByVestingType: UserCountByVestingType = {};
-
-    // Calculate the number of existing users for each allocation type
-    users.forEach((user) => {
-      const { address, allocationsType } = user;
-
-      // Initializing group by user
-      groupedUsers[address] = [];
-
-      if(!userCountByVestingType[allocationsType]) {
-        userCountByVestingType[allocationsType] = 1;
-      } else {
-        userCountByVestingType[allocationsType] += 1;
-      }
-    })
-
     const leaves: string[] = [];
 
-    users.forEach((user) => {
-      userNodes.push(user);
+    for(const user of users) {
+      try {
+        userNodes.push(user);
+        const { allocationsType, address, weight = BigNumber.from(0) } = user;
 
-      const { allocationsType, address } = user;
-      const { percentage, vestingInfo } = ALLOCATIONS[allocationsType];
+        /**
+         * Amount of tokens to be awarded.
+         * IMPORTANT: if this value exists and is greater than zero, it must have priority over
+         * the weight (%)
+         */
+        const _amount = user.amount || BigNumber.from(0);
 
-      // Multiplier to prevent underflow for numbers too small to use with BigNumber
-      const PERCENTAGE_DENOMINATOR = 10_000;
-
-      const vestingShare = BigNumber.from(ALLOCATION_TOTAL_SUPPLY)
-        .mul(percentage * PERCENTAGE_DENOMINATOR);
-
-      // Total users for current allocation type
-      const TOTAL_USERS = BigNumber.from(userCountByVestingType[allocationsType]);
-
-      if(vestingInfo == 'unlocked') {
-        const amountInBN = vestingShare.div(TOTAL_USERS).div(PERCENTAGE_DENOMINATOR);
-        const amount = parseEther(amountInBN.toString()).toString();
-
-        const _vestingSchedule = {
-          amount,
-          address,
-          vestingCliff: 0,
+        // Initializing group by user
+        if(!groupedUsers.hasOwnProperty(address)) {
+          groupedUsers[address] = [];
         }
 
-        vestingSchedules.push(_vestingSchedule);
-        groupedUsers[address].push(_vestingSchedule);
-        leaves.push(vestingScheduleHash(_vestingSchedule));
-      }
+        // Multiplier to prevent underflow for numbers too small to use with BigNumber
+        const DENOMINATOR = 10_000;
 
-      if(vestingInfo != 'unlocked') {
-        const { cliff, monthly, months, unlocking } = vestingInfo;
+        const { percentage, vestingInfo } = ALLOCATIONS[allocationsType];
 
-        if(unlocking > 0) {
-          const amountPerUser = vestingShare.mul(unlocking * PERCENTAGE_DENOMINATOR)
-            .div(TOTAL_USERS)
-            .div(PERCENTAGE_DENOMINATOR)
-            .div(PERCENTAGE_DENOMINATOR);
-          const amount = parseEther(amountPerUser.toString()).toString();
+        // Divide by 1 ETH which is the pool percentage multiplier
+        const poolShareBN = percentage.mul(ALLOCATION_TOTAL_SUPPLY).div(parseEther('1'));
+
+        if(vestingInfo == 'unlocked') {
+          let amount = '';
+
+          if(_amount.gt(0)) {
+            amount = _amount.toString();
+          } else {
+            amount = poolShareBN.mul(weight).toString();
+          }
+
 
           const _vestingSchedule = {
             amount,
@@ -113,31 +90,64 @@ export class VestingTree extends MerkleTree {
           leaves.push(vestingScheduleHash(_vestingSchedule));
         }
 
-        months.map((month, monthIndex) => {
-          // Array with the length of the months in which the allocation releases will be made
-          [...new Array(month).keys()].forEach((cycle) => {
-            const _monthly = monthly[monthIndex];
-            const amountPerUser = vestingShare.mul(_monthly * PERCENTAGE_DENOMINATOR)
-              .div(TOTAL_USERS)
-              .div(PERCENTAGE_DENOMINATOR)
-              .div(PERCENTAGE_DENOMINATOR);
-            const amount = parseEther(amountPerUser.toString()).toString()
+        if(vestingInfo != 'unlocked') {
+          const { cliff, monthly, months, unlocking } = vestingInfo;
 
-            const vestingCliff = cliff + (ONE_MONTH_IN_SECONDS * cycle);
+          if(unlocking > 0) {
+            let amount = '';
+
+            if(_amount.gt(0)) {
+              amount = _amount.mul(unlocking * DENOMINATOR).div(DENOMINATOR).toString();
+            } else {
+              let amountPerUser = poolShareBN.mul(unlocking * DENOMINATOR).mul(weight);
+              amount = amountPerUser.div(DENOMINATOR).toString();
+            }
+
 
             const _vestingSchedule = {
               amount,
               address,
-              vestingCliff,
+              vestingCliff: 0,
             }
 
             vestingSchedules.push(_vestingSchedule);
             groupedUsers[address].push(_vestingSchedule);
             leaves.push(vestingScheduleHash(_vestingSchedule));
+          }
+
+          months.map((month, monthIndex) => {
+            // Array with the length of the months in which the allocation releases will be made
+            [...new Array(month).keys()].forEach((cycle) => {
+              let amount = '';
+              const _monthly = monthly[monthIndex];
+
+              if(_amount.gt(0)) {
+                amount = _amount.mul(_monthly * DENOMINATOR).div(DENOMINATOR).toString();
+              } else {
+                const amountPerUser = poolShareBN.mul(_monthly * DENOMINATOR).mul(weight);
+                amount = amountPerUser.div(DENOMINATOR).toString();
+              }
+
+
+              const vestingCliff = cliff + (ONE_MONTH_IN_SECONDS * cycle);
+
+              const _vestingSchedule = {
+                amount,
+                address,
+                vestingCliff,
+              }
+
+              vestingSchedules.push(_vestingSchedule);
+              groupedUsers[address].push(_vestingSchedule);
+              leaves.push(vestingScheduleHash(_vestingSchedule));
+            })
           })
-        })
+        }
+      } catch(error) {
+        console.log('> VestingTree - constructor:', error);
+        break;
       }
-    })
+    }
 
     super(leaves, keccak256, { sortPairs: true });
     this.userNodes = userNodes;

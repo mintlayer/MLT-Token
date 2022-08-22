@@ -1,13 +1,15 @@
 import { BigNumber } from 'ethers';
 import { deployments, ethers } from 'hardhat';
+import { parseEther } from 'ethers/lib/utils';
 
 import { assert, expect } from './utils/chaiSetup';
 import { VestingTree } from '../helpers/VestingTree';
-import { ALLOCATIONS, VESTING_TYPES } from '../constants';
 import { VESTING_USERS } from '../addressbook/vestingAddresses';
+import { ALLOCATIONS, POOLS_SUPPLY, VESTING_TYPES } from '../constants';
 
 /* types */
 import type { MLTTokenV1 as IMLTToken } from 'build/types';
+import type { PartialRecord } from 'typescript/vestingTree';
 
 let tree: VestingTree | null = null;
 
@@ -61,11 +63,41 @@ describe('Vesting merkle tree', () => {
 
   it('The sum of the percentages for all user groups must be equal to 100%', async () => {
     const vestingTotal = Object.entries(ALLOCATIONS).reduce((prev, current) => {
-      const [ key, value ] = current;
-      return prev + (value.percentage * 100);
-    }, 0);
+      const [ _, value ] = current;
+      return prev.add(value.percentage);
+    }, BigNumber.from(0));
 
-    expect(vestingTotal).to.be.equal(100);
+    expect(vestingTotal).to.be.equal(parseEther('1'));
+
+    const pools: PartialRecord<keyof typeof POOLS_SUPPLY, {
+      weight: BigNumber;
+      amount: BigNumber;
+    }> = {};
+
+    VESTING_USERS.forEach((user) => {
+      const {
+        allocationsType,
+        weight = BigNumber.from(0),
+        amount = BigNumber.from(0),
+      } = user;
+      if(pools.hasOwnProperty(allocationsType)) {
+        pools[allocationsType] = {
+          weight: pools[allocationsType].weight.add(weight),
+          amount: pools[allocationsType].amount.add(amount)
+        };
+      } else {
+        pools[allocationsType] = { weight, amount };
+      }
+    });
+
+    Object.entries(pools).map(([key, value]) => {
+      const { weight, amount } = value;
+
+      const supply: number = POOLS_SUPPLY[key];
+      const remainder = weight.mul(supply);
+
+      expect(remainder.add(amount)).to.be.equal(parseEther(supply.toString()));
+    })
   })
 
   it('Total supply of allocations should match with the sum of the merkle tree', async () => {
@@ -77,15 +109,16 @@ describe('Vesting merkle tree', () => {
 
     const totalSupply = await MLTToken.totalSupply();
 
-    expect(totalAllocations).to.be.equal(totalSupply)
+    expect(totalAllocations).to.be.equal(totalSupply);
   });
 
   it('A merkle proof should be checked on the chain', async () => {
     const { tree, contracts: { MLTToken }} = await setup();
 
     const schedule = tree.vestingSchedules[0];
-    const proof = tree.getHexProofWithMetadata(schedule);
-    const verify = await MLTToken.verifyProof(schedule.address, proof);
+    const { address, amount, vestingCliff } = schedule;
+    const proof = tree.getHexProof(tree.hash(schedule));
+    const verify = await MLTToken.verifyProof(address, amount, vestingCliff, proof);
     assert.ok(verify);
   });
 })
