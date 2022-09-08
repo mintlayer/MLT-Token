@@ -13,7 +13,7 @@ import {
 
 import type {
   VestingUsers,
-  GroupedUsers,
+  GroupedByUsers,
   VestingSchedule,
   VestingTreeParams,
 } from '../typescript/vestingTree';
@@ -32,14 +32,14 @@ function vestingScheduleHash(item: VestingSchedule) {
 
 export class VestingTree extends MerkleTree {
   userNodes: VestingUsers[] = [];
-  groupedUsers: GroupedUsers = {};
+  groupedByUsers: GroupedByUsers = {};
   vestingSchedules: VestingSchedule[] = [];
 
   constructor(params: VestingTreeParams) {
     const { users } = params;
 
     const userNodes: VestingUsers[] = [];
-    const groupedUsers: GroupedUsers = {};
+    const groupedByUsers: GroupedByUsers = {};
     const vestingSchedules: VestingSchedule[] = [];
 
     const leaves: string[] = [];
@@ -49,6 +49,13 @@ export class VestingTree extends MerkleTree {
         userNodes.push(user);
         const { allocationsType, address, weight = BigNumber.from(0) } = user;
 
+        const _vestingSchedule: VestingSchedule = {
+          address,
+          amount: '0',
+          vestingCliff: 0,
+          allocationsType,
+        }
+
         /**
          * Amount of tokens to be awarded.
          * IMPORTANT: if this value exists and is greater than zero, it must have priority over
@@ -57,8 +64,8 @@ export class VestingTree extends MerkleTree {
         const _amount = user.amount || BigNumber.from(0);
 
         // Initializing group by user
-        if(!groupedUsers.hasOwnProperty(address)) {
-          groupedUsers[address] = [];
+        if(!groupedByUsers.hasOwnProperty(address)) {
+          groupedByUsers[address] = [];
         }
 
         // Multiplier to prevent underflow for numbers too small to use with BigNumber
@@ -78,15 +85,10 @@ export class VestingTree extends MerkleTree {
             amount = poolShareBN.mul(weight).toString();
           }
 
-
-          const _vestingSchedule = {
-            amount,
-            address,
-            vestingCliff: 0,
-          }
+          _vestingSchedule.amount = amount;
 
           vestingSchedules.push(_vestingSchedule);
-          groupedUsers[address].push(_vestingSchedule);
+          groupedByUsers[address].push(_vestingSchedule);
           leaves.push(vestingScheduleHash(_vestingSchedule));
         }
 
@@ -103,19 +105,16 @@ export class VestingTree extends MerkleTree {
               amount = amountPerUser.div(DENOMINATOR).toString();
             }
 
-
-            const _vestingSchedule = {
-              amount,
-              address,
-              vestingCliff: 0,
-            }
+            _vestingSchedule.amount = amount;
 
             vestingSchedules.push(_vestingSchedule);
-            groupedUsers[address].push(_vestingSchedule);
+            groupedByUsers[address].push(_vestingSchedule);
             leaves.push(vestingScheduleHash(_vestingSchedule));
           }
 
           months.map((month, monthIndex) => {
+            const prevCycle = (monthIndex > 0) ? months[monthIndex - 1] : 0;
+
             // Array with the length of the months in which the allocation releases will be made
             [...new Array(month).keys()].forEach((cycle) => {
               let amount = '';
@@ -128,17 +127,17 @@ export class VestingTree extends MerkleTree {
                 amount = amountPerUser.div(DENOMINATOR).toString();
               }
 
-
-              const vestingCliff = cliff + (ONE_MONTH_IN_SECONDS * cycle);
+              const vestingCliff = cliff + (ONE_MONTH_IN_SECONDS * (cycle + prevCycle));
 
               const _vestingSchedule = {
                 amount,
                 address,
                 vestingCliff,
+                allocationsType,
               }
 
               vestingSchedules.push(_vestingSchedule);
-              groupedUsers[address].push(_vestingSchedule);
+              groupedByUsers[address].push(_vestingSchedule);
               leaves.push(vestingScheduleHash(_vestingSchedule));
             })
           })
@@ -151,12 +150,12 @@ export class VestingTree extends MerkleTree {
 
     super(leaves, keccak256, { sortPairs: true });
     this.userNodes = userNodes;
-    this.groupedUsers = groupedUsers;
+    this.groupedByUsers = groupedByUsers;
     this.vestingSchedules = vestingSchedules;
   }
 
   getUserAllocations(address: string) {
-    return this.groupedUsers[address] || [];
+    return this.groupedByUsers[address] || [];
   }
 
   hash(item: VestingSchedule) {

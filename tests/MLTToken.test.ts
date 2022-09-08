@@ -138,8 +138,8 @@ describe('MLTToken contract', () => {
 
     const vestingSchedulePromises: Promise<any>[] = [];
 
-    for(const key in tree.groupedUsers) {
-      const user = tree.groupedUsers[key];
+    for(const key in tree.groupedByUsers) {
+      const user = tree.groupedByUsers[key];
 
       vestingSchedulePromises.push(new Promise(async (resolve) => {
         for(const vestingSchedule of user) {

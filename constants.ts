@@ -4,6 +4,7 @@ dotenv.config();
 import { parseEther } from 'ethers/lib/utils';
 
 /* types */
+import type { NetworksInfo } from './typescript/constants';
 import type { VestingTypes } from "typescript/vestingTree";
 
 export const {
@@ -30,7 +31,7 @@ export const ONE_MONTH_IN_SECONDS = IS_PRODUCTION
   ? 60 * 60 * 24 * 30
   // (360) For testing/simulation purposes, a month is represented as an hour. With the
   // following scalar representation we can have a period of 12 months (one year) in 12 hours
-  : 60 * 60;
+  : 60 * 60 * 24;
 
 export const ALLOCATION_TOTAL_SUPPLY = 400_000_000;
 
@@ -136,4 +137,19 @@ export const ALLOCATIONS = {
     percentage: parseEther(`${POOLS_SUPPLY.teamAndAdvisors / ALLOCATION_TOTAL_SUPPLY}`),
     vestingInfo: VESTING_TYPES.type4
   },
+}
+
+
+export const NETWORKS: NetworksInfo = {
+  fuji: {
+    name: 'Avalanche Fuji Testnet',
+    blockExplorerUrl: 'https://testnet.snowtrace.io',
+    rpcUrl: 'https://api.avax-test.network/ext/bc/C/rpc',
+    chainId: 43113,
+    nativeCurrency: {
+      decimals: 18,
+      name: 'AVAX',
+      symbol: 'AVAX'
+    }
+  }
 }

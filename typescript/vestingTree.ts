@@ -31,14 +31,32 @@ export type PartialRecord<K extends keyof any, T> = {
   [P in K]?: T;
 };
 
-export type GroupedUsers = Record<string, VestingSchedule[]>;
+export type GroupedByUsers = Record<string, VestingSchedule[]>;
 
 export interface VestingSchedule {
   address: string; // Address of beneficiary
   amount: string; // Amount of tokens to be released
   vestingCliff: number; // Lock delay for release
+  allocationsType: AllocationsType;
 }
 
 export interface VestingTreeParams {
   users: VestingUsers[];
+}
+
+// Information of a user for the dapp
+export interface UserDapp {
+  totalVesting: string;
+  endDateTimestamp: number;
+  allocationsType: AllocationsType;
+  vestingSchedules: (VestingSchedule & {
+    hash: string;
+    proof: string[];
+  })[];
+}
+
+export interface VestingData {
+  contractAddress: string;
+  startDateTimestamp: number;
+  usersByAddress: Record<string, UserDapp>;
 }

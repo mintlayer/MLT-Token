@@ -1,15 +1,17 @@
 import XLSX from 'xlsx';
+import path from "path";
 import chalk from 'chalk';
 import { prompt } from 'inquirer';
 import { BigNumber } from 'ethers';
+import { open } from "fs/promises";
 import { formatISO, isFuture } from 'date-fns';
 import { subtask, task } from 'hardhat/config';
 import { formatEther, formatUnits } from 'ethers/lib/utils';
 
 import { deepCopy } from '../helpers/deepCopy';
 import { twirlTimer } from '../helpers/twirlTimer';
-import { BATCH_SIZE, GAS_LIMIT } from '../constants';
 import { VestingTree } from '../helpers/VestingTree';
+import { BATCH_SIZE, GAS_LIMIT, NETWORKS } from '../constants';
 import { VESTING_USERS } from '../addressbook/vestingAddresses';
 import { fetchCoinGeckoPrices } from '../helpers/fetchCoinGeckoPrices';
 import { getMerkletreeCache, setMerkletreeCache } from '../helpers/merkletreeCache';
@@ -22,6 +24,7 @@ const MSG_GREEN = chalk.green;
 const MSG_YELLOW = chalk.yellow;
 
 /* types */
+import type { VestingData } from 'typescript/vestingTree';
 import type { MLTTokenV1 as IMLTTokenV1 } from 'build/types';
 import type { HardhatRuntimeEnvironment } from "hardhat/types";
 
@@ -29,6 +32,7 @@ let tree: VestingTree | undefined;
 
 /* subtasks */
 const MERKLETREE_EXPORT = 'MERKLETREE_EXPORT';
+const MERKLETREE_EXPORT_DAPP = 'MERKLETREE_EXPORT_DAPP';
 const SUBMIT_RELEASED_VESTING = 'SUBMIT_RELEASED_VESTING';
 const MERKLETREE_RELEASE_DATES = 'MERKLETREE_RELEASE_DATES';
 
@@ -49,8 +53,12 @@ task('merkletree').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
           value: MERKLETREE_RELEASE_DATES
         },
         {
-          name: 'Export an .xlsx with the vesting list and their respective merkle proof',
+          name: 'Export the vesting list and their respective merkle proof',
           value: MERKLETREE_EXPORT
+        },
+        {
+          name: 'Export data for the dapp',
+          value: MERKLETREE_EXPORT_DAPP
         },
       ]
     });
@@ -385,8 +393,35 @@ subtask(MERKLETREE_EXPORT)
       await deployments.fixture(['MLTTokenV1']);
     }
 
+    enum Format {
+      json,
+      excel,
+      print,
+    }
+
+    const question = await prompt({
+      type: 'list',
+      name: 'response',
+      message: 'Select an option:',
+      choices: [
+        {
+          name: 'export in JSON format',
+          value: Format.json
+        },
+        {
+          name: 'export in XLSX format',
+          value: Format.excel
+        },
+        {
+          name: 'print in console',
+          value: Format.print
+        },
+      ]
+    })
+
     const MLTToken = await ethers.getContract<IMLTTokenV1>('MLTTokenV1');
 
+    const FILENAME = 'vesting_schedule';
     const VESTING_START_TIMESTAMP = (await MLTToken.VESTING_START_TIMESTAMP()).toNumber();
 
     const vestingSchedulesOrdered = tree.vestingSchedules.sort((a, b) => {
@@ -400,31 +435,155 @@ subtask(MERKLETREE_EXPORT)
       twirlTimer(`Preparing data ${i + 1} of ${LENGTH}`);
 
       const { address, amount, vestingCliff } = item;
-      const date = new Date(VESTING_START_TIMESTAMP + vestingCliff);
+      const timestamp = VESTING_START_TIMESTAMP + vestingCliff;
+
+      const date = new Date(timestamp);
       const dateISO = formatISO(date, { representation: 'date' });
       const proof = tree.getHexProof(tree.hash(item));
 
-      return {
-        Address: address,
-        Amount: amount,
-        Proof: JSON.stringify(proof, null, 2),
-        'Release date': dateISO,
+      if(Format.excel == question.response) {
+        return {
+          Address: address,
+          Amount: amount,
+          Proof: JSON.stringify(proof, null, 2),
+          'Release date': dateISO,
+        }
       }
+
+      return { address, amount, proof, cliff: timestamp }
     })
 
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(rows);
+    switch(question.response) {
+      case Format.json:
+        const filePath = path.join(process.cwd(), `${FILENAME}.json`);
+        const fileHandle = await open(filePath, 'w+');
 
-    worksheet['!cols'] = [
-      { wch: 60 },
-      { wch: 30 },
-      { wch: 60 },
-      { wch: 20 },
-    ];
+        if(!fileHandle) {
+          console.log('\r'); // Line break for better readability of messages
+          console.log(`\n${MSG_RED('✘')} Export error`);
+          return;
+        }
 
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Vesting schedule');
-    XLSX.writeFile(workbook, 'vesting_schedule.xlsx');
+        await fileHandle.writeFile(JSON.stringify(rows, null, 2), { encoding: 'utf-8' });
+        await fileHandle?.close();
+
+        break;
+      case Format.print:
+        console.log(JSON.stringify(rows, null, 2));
+        break;
+      case Format.excel:
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+
+        worksheet['!cols'] = [
+          { wch: 60 },
+          { wch: 30 },
+          { wch: 60 },
+          { wch: 20 },
+        ];
+
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Vesting schedule');
+        XLSX.writeFile(workbook, `${FILENAME}.xlsx`);
+
+        break;
+      default:
+        console.log('\r'); // Line break for better readability of messages
+        console.log(`\n${MSG_RED('✘')} Export error`);
+        return;
+    }
 
     console.log('\r'); // Line break for better readability of messages
+    console.log(`\n${MSG_GREEN('✔')} Successful export 🥳🎉`);
+  })
+
+subtask(MERKLETREE_EXPORT_DAPP)
+  .setAction(async (_, hre: HardhatRuntimeEnvironment) => {
+    const { deployments, network, ethers } = hre;
+
+    if(!tree) hre.run('generate-tree');
+    if(!tree) return;
+
+    if(network.name == 'hardhat') {
+      await deployments.fixture(['MLTTokenV1']);
+    }
+
+    const networkInfo = NETWORKS[network.name];
+
+    if(!networkInfo) {
+      throw new Error(
+        `Data is missing for the '${network.name}' network. Before proceeding, you must ` +
+        'complete the necessary information for the network in the file constants.ts'
+      );
+    }
+
+    const MLTToken = await ethers.getContract<IMLTTokenV1>('MLTTokenV1');
+
+    const VESTING_START_TIMESTAMP = (await MLTToken.VESTING_START_TIMESTAMP()).toNumber();
+
+    const vestingData: VestingData = {
+      startDateTimestamp: VESTING_START_TIMESTAMP,
+      contractAddress: MLTToken.address,
+      usersByAddress: {},
+    };
+
+    let count = 0;
+    const LENGTH = Object.keys(tree.groupedByUsers).length;
+
+    for(const key in tree.groupedByUsers) {
+      twirlTimer(`Preparing data ${++count} of ${LENGTH}`);
+
+      let totalVesting = BigNumber.from(0);
+      const vestingSchedules = tree.groupedByUsers[key];
+
+      const schedulesOrdered = vestingSchedules.sort((a, b) => {
+        if(a.vestingCliff < b.vestingCliff) return -1;
+        if(a.vestingCliff > b.vestingCliff) return 1;
+        return 0;
+      })
+
+      const vestingSchedulesOrderedWidthProof = schedulesOrdered.map((el) => {
+        totalVesting = totalVesting.add(el.amount);
+        const hash = tree.hash(el);
+        const proof = tree.getHexProof(tree.hash(el));
+
+        return { ...el, proof, hash }
+      })
+
+      const endVestingCliff = schedulesOrdered[schedulesOrdered.length - 1].vestingCliff;
+
+      vestingData.usersByAddress[`${key.toUpperCase()}`] = {
+        endDateTimestamp: VESTING_START_TIMESTAMP + endVestingCliff,
+        allocationsType: schedulesOrdered[0].allocationsType,
+        totalVesting: totalVesting.toString(),
+        vestingSchedules: vestingSchedulesOrderedWidthProof,
+      };
+    }
+
+    const FILENAME = 'vesting_data_dapp';
+    const filePath = path.join(process.cwd(), `${FILENAME}.ts`);
+    const fileHandle = await open(filePath, 'w+');
+
+    console.log('\r'); // Line break for better readability of messages
+
+    if(!fileHandle) {
+      console.log(`\n${MSG_RED('✘')} Export error`);
+      return;
+    }
+
+    let data = '/* Autogenerated file. Do not edit manually. */\n\n';
+    data += `export const MLTTokenAddress = '${MLTToken.address}';\n\n`;
+    data += `export const BATCH_SIZE = ${BATCH_SIZE};\n\n`;
+    data += `export const NETWORK_CHAIN_ID = ${networkInfo.chainId};\n\n`;
+    data += `export const NETWORK_URL_RPC = '${networkInfo.rpcUrl}';\n\n`;
+    data += `export const NETWORK_NAME = '${networkInfo.name}';\n\n`;
+    data += `export const NETWORK_CURRENCY_NAME = '${networkInfo.nativeCurrency.name}';\n\n`;
+    data += `export const NETWORK_CURRENCY_SYMBOL = '${networkInfo.nativeCurrency.symbol}';\n\n`;
+    data += `export const NETWORK_DECIMALS = '${networkInfo.nativeCurrency.decimals}';\n\n`;
+    data += `export const NETWORK_EXPLORER_URL = '${networkInfo.blockExplorerUrl}';\n\n`;
+    data += `export const VESTING_DATA = ${JSON.stringify(vestingData, null, 2)}`;
+
+    await fileHandle.writeFile(data, { encoding: 'utf-8' });
+    await fileHandle?.close();
+
     console.log(`\n${MSG_GREEN('✔')} Successful export 🥳🎉`);
   })
