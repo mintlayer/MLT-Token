@@ -8,6 +8,7 @@
     "task": "npx hardhat",
     "test": "scripts/test",
     "build": "scripts/build",
+    "verify": "hardhat verify",
     "compile": "hardhat compile",
     "deploy": "npx hardhat deploy",
     "typechain": "scripts/typechain",

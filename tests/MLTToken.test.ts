@@ -80,7 +80,6 @@ describe('MLTToken contract', () => {
       const block = await ethers.provider.getBlock(blockNumber);
       const blockTimestamp = block.timestamp;
 
-
       const vestingSchedule = tree.vestingSchedules[0];
 
       const timestamp = VESTING_TIMESTAMP.add(vestingSchedule.vestingCliff).toNumber();
@@ -92,12 +91,14 @@ describe('MLTToken contract', () => {
       const userBalBefore = await MLTToken.balanceOf(vestingSchedule.address);
       const proof = tree.getHexProof(tree.hash(vestingSchedule));
 
-      await MLTToken.releaseVested(
+      const releaseVestedTx = MLTToken.releaseVested(
         vestingSchedule.address,
         vestingSchedule.amount,
         vestingSchedule.vestingCliff,
         proof
       );
+
+      await expect(releaseVestedTx).to.be.emit(MLTToken, 'VestedTokenGrant');
 
       const userBalAfter = await MLTToken.balanceOf(vestingSchedule.address);
 

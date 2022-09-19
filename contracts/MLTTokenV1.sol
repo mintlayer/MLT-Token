@@ -31,6 +31,8 @@ contract MLTTokenV1 is ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
 	mapping(bytes32 => bool) public vestingClaimed;
 	/* END VARIABLES */
 
+	event VestedTokenGrant(bytes32 indexed leafHash);
+
 	/// @custom:oz-upgrades-unsafe-allow constructor
 	constructor() {
 		_disableInitializers();
@@ -132,6 +134,8 @@ contract MLTTokenV1 is ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
 
 		vestingClaimed[_leaf] = true;
 		_transfer(address(this), _beneficiary, _amount);
+
+		emit VestedTokenGrant(_leaf);
 	}
 
 	function _authorizeUpgrade(address) internal override onlyOwner {}

@@ -15,6 +15,8 @@ export const {
   ALCHEMY_API_KEY,
   ETHERSCAN_API_KEY,
   COINMARKETCAP_API,
+  ETHERSCAN_FTM_API_KEY,
+  ETHERSCAN_FUJI_API_KEY,
 } = process.env;
 
 export const IS_PRODUCTION = false;

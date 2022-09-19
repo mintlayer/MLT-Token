@@ -19,6 +19,8 @@ import {
   ALCHEMY_API_KEY,
   ETHERSCAN_API_KEY,
   COINMARKETCAP_API,
+  ETHERSCAN_FTM_API_KEY,
+  ETHERSCAN_FUJI_API_KEY,
 } from './constants';
 
 /* tasks */
@@ -95,7 +97,10 @@ const config: HardhatUserConfig = {
     outDir: 'build/types',
   },
   etherscan: {
-    apiKey: ETHERSCAN_API_KEY,
+    apiKey: {
+      ftmTestnet: ETHERSCAN_FTM_API_KEY,
+      avalancheFujiTestnet: ETHERSCAN_FUJI_API_KEY,
+    }
   },
   gasReporter: {
     currency: 'USD',

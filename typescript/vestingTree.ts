@@ -44,19 +44,24 @@ export interface VestingTreeParams {
   users: VestingUsers[];
 }
 
+export interface VestingScheduleWithProof extends VestingSchedule {
+  hash: string;
+  proof: string[];
+  transactionHash?: string;
+}
+
 // Information of a user for the dapp
 export interface UserDapp {
   totalVesting: string;
   endDateTimestamp: number;
   allocationsType: AllocationsType;
-  vestingSchedules: (VestingSchedule & {
-    hash: string;
-    proof: string[];
-  })[];
+  vestingSchedules: VestingScheduleWithProof[];
 }
 
 export interface VestingData {
   contractAddress: string;
   startDateTimestamp: number;
+  endDateTimestamp: number;
+  vestingSchedules: VestingScheduleWithProof[];
   usersByAddress: Record<string, UserDapp>;
 }
