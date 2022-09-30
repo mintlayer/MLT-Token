@@ -54,6 +54,42 @@ const config: HardhatUserConfig = {
           },
         },
       },
+      {
+        version: '0.7.6',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 10000,
+          },
+        },
+      },
+      {
+        version: '0.6.12',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 10000,
+          },
+        },
+      },
+      {
+        version: '0.6.2',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 10000,
+          },
+        },
+      },
+      {
+        version: '0.6.0',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 10000,
+          },
+        },
+      },
     ],
   },
   defaultNetwork: 'hardhat',
@@ -62,7 +98,6 @@ const config: HardhatUserConfig = {
       tags: ['local'],
       loggingEnabled: false,
       forking: {
-        // blockNumber: 15200000,
         url: `https://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_API_KEY}`,
       }
     },

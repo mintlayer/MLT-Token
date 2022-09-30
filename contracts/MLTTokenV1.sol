@@ -1,17 +1,15 @@
 /// SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.8;
+pragma solidity 0.6.12;
+pragma experimental ABIEncoderV2;
 
-import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
-import '@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol';
-import '@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol';
-import '@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol';
-import '@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol';
-import '@openzeppelin/contracts-upgradeable/utils/cryptography/MerkleProofUpgradeable.sol';
+import '@openzeppelin/contracts/math/SafeMath.sol';
+import '@openzeppelin/contracts/access/Ownable.sol';
+import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
+import '@openzeppelin/contracts/cryptography/MerkleProof.sol';
 
-contract MLTTokenV1 is ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
-	using SafeMathUpgradeable for uint256;
-	using SafeERC20Upgradeable for IERC20Upgradeable;
+contract MLTTokenV1 is ERC20, Ownable {
+	using SafeMath for uint256;
 
 	struct User {
 		address beneficiary;
@@ -33,11 +31,6 @@ contract MLTTokenV1 is ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
 
 	event VestedTokenGrant(bytes32 indexed leafHash);
 
-	/// @custom:oz-upgrades-unsafe-allow constructor
-	constructor() {
-		_disableInitializers();
-	}
-
 	/**
 	 * @param _name Name of ERC20 token
 	 * @param _symbol Symbol of ERC20 token
@@ -45,17 +38,13 @@ contract MLTTokenV1 is ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
 	 * @param _vestingTreeRoot Vesting tree root hash
 	 * @param _vestingStartTimestamp Timestamp of vesting start as seconds since the Unix epoch
 	 **/
-	function initialize(
+	constructor(
 		string memory _name,
 		string memory _symbol,
 		uint256 _supply,
 		bytes32 _vestingTreeRoot,
 		uint256 _vestingStartTimestamp
-	) external initializer {
-		__ERC20_init(_name, _symbol);
-		__Ownable_init();
-		__UUPSUpgradeable_init();
-
+	) ERC20(_name, _symbol) public {
 		VESTING_TREE_ROOT = _vestingTreeRoot;
 		VESTING_START_TIMESTAMP = _vestingStartTimestamp;
 
@@ -76,7 +65,7 @@ contract MLTTokenV1 is ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
 		bytes32[] calldata _proof
 	) external view returns(bool) {
 		bytes32 _leaf = keccak256(abi.encodePacked(_beneficiary, _amount, _cliff));
-		return MerkleProofUpgradeable.verify(_proof, VESTING_TREE_ROOT, _leaf);
+		return MerkleProof.verify(_proof, VESTING_TREE_ROOT, _leaf);
 	}
 
 	/**
@@ -85,9 +74,15 @@ contract MLTTokenV1 is ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
 	**/
 	function batchReleaseVested(User[] calldata _users) external {
 		for(uint256 i = 0; i < _users.length; i++) {
-			User calldata _user = _users[i];
-			try this.releaseVested(_user.beneficiary, _user.amount, _user.cliff, _user.proof) {}
-			catch {}
+			(
+				address beneficiary,
+				uint256 amount,
+				uint256 cliff,
+				bytes32[] calldata proof
+			) = _splitUser(_users[i]);
+
+			bytes32 _leaf = keccak256(abi.encodePacked(beneficiary, amount, cliff));
+			if(!vestingClaimed[_leaf]) _releaseVested(beneficiary, amount, cliff, proof);
 		}
 	}
 
@@ -123,7 +118,7 @@ contract MLTTokenV1 is ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
 		bytes32 _leaf = keccak256(abi.encodePacked(_beneficiary, _amount, _cliff));
 
 		require(
-			MerkleProofUpgradeable.verify(_proof, VESTING_TREE_ROOT, _leaf), 'Invalid merkle proof'
+			MerkleProof.verify(_proof, VESTING_TREE_ROOT, _leaf), 'Invalid merkle proof'
 		);
 
 		require(!vestingClaimed[_leaf], 'Tokens already claimed');
@@ -138,5 +133,12 @@ contract MLTTokenV1 is ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
 		emit VestedTokenGrant(_leaf);
 	}
 
-	function _authorizeUpgrade(address) internal override onlyOwner {}
+	function _splitUser(User calldata _user) internal pure returns(
+		address beneficiary,
+		uint256 amount,
+		uint256 cliff,
+		bytes32[] calldata proof
+	) {
+		return (_user.beneficiary, _user.amount, _user.cliff, _user.proof);
+	}
 }
