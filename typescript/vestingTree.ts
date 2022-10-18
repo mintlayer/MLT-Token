@@ -1,7 +1,14 @@
 import { BigNumber } from "ethers";
-import { ALLOCATIONS } from "../constants";
+import { POOLS_SUPPLY } from "../constants";
 
-export type AllocationsType = keyof typeof ALLOCATIONS;
+export type AllocationsType = keyof typeof POOLS_SUPPLY;
+
+export type UserCountByVestingType = PartialRecord<AllocationsType, number>;
+
+export type Allocations = Record<AllocationsType, {
+  percentage: BigNumber;
+  vestingInfo: VestingType | 'unlocked';
+}>
 
 export interface VestingType {
   unlocking: number; // percentage represented in floating point numbers
@@ -32,6 +39,8 @@ export type PartialRecord<K extends keyof any, T> = {
 };
 
 export type GroupedByUsers = Record<string, VestingSchedule[]>;
+export type GroupedByCliff = Record<string, VestingSchedule[]>;
+export type AllocationTypeMapCliff = PartialRecord<AllocationsType, GroupedByCliff>;
 
 export interface VestingSchedule {
   address: string; // Address of beneficiary

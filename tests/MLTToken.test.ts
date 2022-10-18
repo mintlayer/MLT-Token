@@ -7,12 +7,12 @@ import { VESTING_USERS } from '../addressbook/vestingAddresses';
 
 /* types */
 import type { Accounts } from '../typescript/hardhat';
-import type { MLTTokenV1 as IMLTToken } from 'build/types';
+import type { MLTToken as IMLTToken } from 'build/types';
 
 let tree: VestingTree | null = null;
 
 async function setup() {
-  await deployments.fixture(['MLTTokenV1']);
+  await deployments.fixture(['MLTToken']);
 
   if(!tree) {
     tree = new VestingTree({ users: VESTING_USERS });
@@ -21,7 +21,7 @@ async function setup() {
   const accounts = await getNamedAccounts() as Accounts;
 
   const [ MLTToken ] = await Promise.all([
-    ethers.getContract<IMLTToken>('MLTTokenV1'),
+    ethers.getContract<IMLTToken>('MLTToken'),
   ])
 
   return {

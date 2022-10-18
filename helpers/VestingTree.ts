@@ -14,8 +14,11 @@ import {
 import type {
   VestingUsers,
   GroupedByUsers,
+  GroupedByCliff,
   VestingSchedule,
   VestingTreeParams,
+  UserCountByVestingType,
+  AllocationTypeMapCliff,
 } from '../typescript/vestingTree';
 
 function vestingScheduleHash(item: VestingSchedule) {
@@ -33,14 +36,40 @@ function vestingScheduleHash(item: VestingSchedule) {
 export class VestingTree extends MerkleTree {
   userNodes: VestingUsers[] = [];
   groupedByUsers: GroupedByUsers = {};
+  groupedByCliff: GroupedByCliff = {};
   vestingSchedules: VestingSchedule[] = [];
+  allocationTypeMapCliff: AllocationTypeMapCliff = {};
 
   constructor(params: VestingTreeParams) {
     const { users } = params;
 
     const userNodes: VestingUsers[] = [];
     const groupedByUsers: GroupedByUsers = {};
+    const groupedByCliff: GroupedByCliff = {};
     const vestingSchedules: VestingSchedule[] = [];
+    const allocationTypeMapCliff: AllocationTypeMapCliff = {};
+
+    const userCountByVestingType: UserCountByVestingType = {};
+
+    Object.keys(ALLOCATIONS).forEach((el) => {
+      // Initializing group by allocation type
+      allocationTypeMapCliff[el] = {};
+    })
+
+    // Calculate the number of existing users for each allocation type
+    users.forEach((user) => {
+      const { address, allocationsType } = user;
+
+      // Initializing group by user
+      groupedByUsers[address] = [];
+
+      if(!userCountByVestingType[allocationsType]) {
+        userCountByVestingType[allocationsType] = 1;
+      } else {
+        userCountByVestingType[allocationsType] += 1;
+      }
+    })
+
 
     const leaves: string[] = [];
 
@@ -49,10 +78,11 @@ export class VestingTree extends MerkleTree {
         userNodes.push(user);
         const { allocationsType, address, weight = BigNumber.from(0) } = user;
 
+        const vestingCliffDefault = 0;
         const _vestingSchedule: VestingSchedule = {
           address,
           amount: '0',
-          vestingCliff: 0,
+          vestingCliff: vestingCliffDefault,
           allocationsType,
         }
 
@@ -63,11 +93,6 @@ export class VestingTree extends MerkleTree {
          */
         const _amount = user.amount || BigNumber.from(0);
 
-        // Initializing group by user
-        if(!groupedByUsers.hasOwnProperty(address)) {
-          groupedByUsers[address] = [];
-        }
-
         // Multiplier to prevent underflow for numbers too small to use with BigNumber
         const DENOMINATOR = 10_000;
 
@@ -75,6 +100,9 @@ export class VestingTree extends MerkleTree {
 
         // Divide by 1 ETH which is the pool percentage multiplier
         const poolShareBN = percentage.mul(ALLOCATION_TOTAL_SUPPLY).div(parseEther('1'));
+
+        // Total users for current allocation type
+        const TOTAL_USERS = BigNumber.from(userCountByVestingType[allocationsType]);
 
         if(vestingInfo == 'unlocked') {
           let amount = '';
@@ -87,22 +115,48 @@ export class VestingTree extends MerkleTree {
 
           _vestingSchedule.amount = amount;
 
+          if(!groupedByCliff.hasOwnProperty(vestingCliffDefault)) {
+            // Initializing group by cliff
+            groupedByCliff[vestingCliffDefault] = [];
+          }
+          
+          if(!allocationTypeMapCliff[allocationsType].hasOwnProperty(vestingCliffDefault)) {
+            // Initializing group by allocation type and cliff
+            allocationTypeMapCliff[allocationsType][vestingCliffDefault] = [];
+          }
+
           vestingSchedules.push(_vestingSchedule);
           groupedByUsers[address].push(_vestingSchedule);
           leaves.push(vestingScheduleHash(_vestingSchedule));
+          groupedByCliff[vestingCliffDefault].push(_vestingSchedule);
+          allocationTypeMapCliff[allocationsType][vestingCliffDefault].push(_vestingSchedule);
         }
 
         if(vestingInfo != 'unlocked') {
           const { cliff, monthly, months, unlocking } = vestingInfo;
 
+          if(!groupedByCliff.hasOwnProperty(vestingCliffDefault)) {
+            // Initializing group by cliff
+            groupedByCliff[vestingCliffDefault] = [];
+          }
+
+          if(!allocationTypeMapCliff[allocationsType].hasOwnProperty(vestingCliffDefault)) {
+            // Initializing group by allocation type and cliff
+            allocationTypeMapCliff[allocationsType][vestingCliffDefault] = [];
+          }
+
           if(unlocking > 0) {
             let amount = '';
 
             if(_amount.gt(0)) {
-              amount = _amount.mul(unlocking * DENOMINATOR).div(DENOMINATOR).toString();
+              amount = _amount.mul(unlocking * DENOMINATOR)
+                .div(DENOMINATOR)
+                .toString();
             } else {
-              let amountPerUser = poolShareBN.mul(unlocking * DENOMINATOR).mul(weight);
-              amount = amountPerUser.div(DENOMINATOR).toString();
+              let amountPerUser = poolShareBN.mul(unlocking * DENOMINATOR)
+                .div(DENOMINATOR)
+                .mul(weight);
+              amount = amountPerUser.toString();
             }
 
             _vestingSchedule.amount = amount;
@@ -110,6 +164,8 @@ export class VestingTree extends MerkleTree {
             vestingSchedules.push(_vestingSchedule);
             groupedByUsers[address].push(_vestingSchedule);
             leaves.push(vestingScheduleHash(_vestingSchedule));
+            groupedByCliff[vestingCliffDefault].push(_vestingSchedule);
+            allocationTypeMapCliff[allocationsType][vestingCliffDefault].push(_vestingSchedule);
           }
 
           months.map((month, monthIndex) => {
@@ -127,7 +183,8 @@ export class VestingTree extends MerkleTree {
                 amount = amountPerUser.div(DENOMINATOR).toString();
               }
 
-              const vestingCliff = cliff + (ONE_MONTH_IN_SECONDS * (cycle + prevCycle));
+              // 1 must be added because the cycle starts at 0.
+              const vestingCliff = cliff + (ONE_MONTH_IN_SECONDS * (cycle + 1 + prevCycle));
 
               const _vestingSchedule = {
                 amount,
@@ -136,9 +193,21 @@ export class VestingTree extends MerkleTree {
                 allocationsType,
               }
 
+              if(!groupedByCliff.hasOwnProperty(vestingCliff)) {
+                // Initializing group by cliff
+                groupedByCliff[vestingCliff] = [];
+              }
+
+              if(!allocationTypeMapCliff[allocationsType].hasOwnProperty(vestingCliff)) {
+                // Initializing group by allocation type and cliff
+                allocationTypeMapCliff[allocationsType][vestingCliff] = [];
+              }
+
               vestingSchedules.push(_vestingSchedule);
               groupedByUsers[address].push(_vestingSchedule);
               leaves.push(vestingScheduleHash(_vestingSchedule));
+              groupedByCliff[vestingCliff].push(_vestingSchedule);
+              allocationTypeMapCliff[allocationsType][vestingCliff].push(_vestingSchedule);
             })
           })
         }
@@ -150,8 +219,10 @@ export class VestingTree extends MerkleTree {
 
     super(leaves, keccak256, { sortPairs: true });
     this.userNodes = userNodes;
+    this.groupedByCliff = groupedByCliff;
     this.groupedByUsers = groupedByUsers;
     this.vestingSchedules = vestingSchedules;
+    this.allocationTypeMapCliff = allocationTypeMapCliff;
   }
 
   getUserAllocations(address: string) {

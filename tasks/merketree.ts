@@ -25,7 +25,7 @@ const MSG_YELLOW = chalk.yellow;
 
 /* types */
 import type { VestingData } from 'typescript/vestingTree';
-import type { MLTTokenV1 as IMLTTokenV1 } from 'build/types';
+import type { MLTToken as IMLTToken } from 'build/types';
 import type { HardhatRuntimeEnvironment } from "hardhat/types";
 
 let tree: VestingTree | undefined;
@@ -79,10 +79,10 @@ subtask(
     const deployer = await ethers.getNamedSigner('deployer');
 
     if(network.name == 'hardhat') {
-      await deployments.fixture(['MLTTokenV1']);
+      await deployments.fixture(['MLTToken']);
     }
 
-    const MLTToken = await ethers.getContract<IMLTTokenV1>('MLTTokenV1');
+    const MLTToken = await ethers.getContract<IMLTToken>('MLTToken');
 
     const [ name, symbol, decimals, _VESTING_START_TIMESTAMP ] = await Promise.all([
       MLTToken.name(),
@@ -132,7 +132,7 @@ subtask(
     const block = await ethers.provider.getBlock(blockNumber);
     const gasLimit = GAS_LIMIT;
 
-    const vestingReadyToRelease: IMLTTokenV1.UserStruct[] = [];
+    const vestingReadyToRelease: IMLTToken.UserStruct[] = [];
 
     // Filter the vesting that are already due to be claimed
     const vestingAlreadyOnDate = tree.vestingSchedules.filter((vestingSchdule) => {
@@ -216,7 +216,7 @@ subtask(
       )
     }
 
-    const batches: IMLTTokenV1.UserStruct[][] = [];
+    const batches: IMLTToken.UserStruct[][] = [];
     const gasPrice = await ethers.provider.getGasPrice();
     const gasPriceInETH = formatEther(gasPrice);
     const gasPriceInGwei = formatUnits(gasPrice, 'gwei');
@@ -358,10 +358,10 @@ subtask(MERKLETREE_RELEASE_DATES, 'Show all release dates in a human readable fo
     if(!tree) return;
 
     if(network.name == 'hardhat') {
-      await deployments.fixture(['MLTTokenV1']);
+      await deployments.fixture(['MLTToken']);
     }
 
-    const MLTToken = await ethers.getContract<IMLTTokenV1>('MLTTokenV1');
+    const MLTToken = await ethers.getContract<IMLTToken>('MLTToken');
 
     const VESTING_START_TIMESTAMP = (await MLTToken.VESTING_START_TIMESTAMP()).toNumber();
 
@@ -390,7 +390,7 @@ subtask(MERKLETREE_EXPORT)
     if(!tree) return;
 
     if(network.name == 'hardhat') {
-      await deployments.fixture(['MLTTokenV1']);
+      await deployments.fixture(['MLTToken']);
     }
 
     enum Format {
@@ -419,7 +419,7 @@ subtask(MERKLETREE_EXPORT)
       ]
     })
 
-    const MLTToken = await ethers.getContract<IMLTTokenV1>('MLTTokenV1');
+    const MLTToken = await ethers.getContract<IMLTToken>('MLTToken');
 
     const FILENAME = 'vesting_schedule';
     const VESTING_START_TIMESTAMP = (await MLTToken.VESTING_START_TIMESTAMP()).toNumber();
@@ -504,7 +504,7 @@ subtask(MERKLETREE_EXPORT_DAPP)
     if(!tree) return;
 
     if(network.name == 'hardhat') {
-      await deployments.fixture(['MLTTokenV1']);
+      await deployments.fixture(['MLTToken']);
     }
 
     const networkInfo = NETWORKS[network.name];
@@ -516,7 +516,7 @@ subtask(MERKLETREE_EXPORT_DAPP)
       );
     }
 
-    const MLTToken = await ethers.getContract<IMLTTokenV1>('MLTTokenV1');
+    const MLTToken = await ethers.getContract<IMLTToken>('MLTToken');
 
     const MLTTokenDeployment = (await deployments.getDeploymentsFromAddress(MLTToken.address))[0];
 

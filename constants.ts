@@ -5,7 +5,7 @@ import { parseEther } from 'ethers/lib/utils';
 
 /* types */
 import type { NetworksInfo } from './typescript/constants';
-import type { VestingTypes } from "typescript/vestingTree";
+import type { Allocations, VestingTypes } from "typescript/vestingTree";
 
 export const {
   REPORT_GAS,
@@ -83,18 +83,16 @@ export const VESTING_TYPES: VestingTypes = {
 export const POOLS_SUPPLY = {
   preSeed: 2_500_000,
   seed: 54_600_000,
-  fairLaunch: 12_605_042,
-  publicSale: 22_000_000,
-  marketing: 48_000_000,
   longVesting: 52_000_000,
   shortVesting: 26_000_000,
+  marketing: 48_000_000,
   development: 40_000_000,
   community: 20_000_000,
-  companyReserve: 72_294_958,
   teamAndAdvisors: 50_000_000,
+  companyReserve: 106_900_000,
 }
 
-export const ALLOCATIONS = {
+export const ALLOCATIONS: Allocations = {
   preSeed: {
     percentage: parseEther(`${POOLS_SUPPLY.preSeed / ALLOCATION_TOTAL_SUPPLY}`),
     vestingInfo: VESTING_TYPES.type4
@@ -102,14 +100,6 @@ export const ALLOCATIONS = {
   seed: {
     percentage: parseEther(`${POOLS_SUPPLY.seed / ALLOCATION_TOTAL_SUPPLY}`),
     vestingInfo: VESTING_TYPES.type2
-  },
-  fairLaunch: {
-    percentage: parseEther(`${POOLS_SUPPLY.fairLaunch / ALLOCATION_TOTAL_SUPPLY}`),
-    vestingInfo: VESTING_TYPES.type2
-  },
-  publicSale: {
-    percentage: parseEther(`${POOLS_SUPPLY.publicSale / ALLOCATION_TOTAL_SUPPLY}`),
-    vestingInfo: VESTING_TYPES.unlocked
   },
   marketing: {
     percentage: parseEther(`${POOLS_SUPPLY.marketing / ALLOCATION_TOTAL_SUPPLY}`),

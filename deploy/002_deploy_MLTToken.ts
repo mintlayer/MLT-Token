@@ -19,7 +19,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     throw new Error('Before moving to productive environment run a double validation of the variables/settings and then remove this error');
   }
 
-  await deploy('MLTTokenV1', {
+  await deploy('MLTToken', {
     log: true,
     from: deployer,
     args: [
@@ -32,6 +32,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   })
 }
 
-func.tags = ['MLTTokenV1'];
+func.tags = ['MLTToken'];
 
 export default func;
