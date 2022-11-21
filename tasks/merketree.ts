@@ -6,15 +6,22 @@ import { BigNumber } from 'ethers';
 import { open } from "fs/promises";
 import { formatISO, isFuture } from 'date-fns';
 import { subtask, task } from 'hardhat/config';
+import { VestingTree } from '@mintlayer/vesting-tree';
 import { formatEther, formatUnits, parseEther } from 'ethers/lib/utils';
 
 import { deepCopy } from '../helpers/deepCopy';
 import { twirlTimer } from '../helpers/twirlTimer';
-import { VestingTree } from '../helpers/VestingTree';
 import { VESTING_USERS } from '../addressbook/vestingAddresses';
 import { fetchCoinGeckoPrices } from '../helpers/fetchCoinGeckoPrices';
 import { getMerkletreeCache, setMerkletreeCache } from '../helpers/merkletreeCache';
-import { ALLOCATION_TOTAL_SUPPLY, BATCH_SIZE, GAS_LIMIT, NETWORKS } from '../constants';
+import {
+  NETWORKS,
+  GAS_LIMIT,
+  BATCH_SIZE,
+  ALLOCATIONS,
+  ALLOCATION_TOTAL_SUPPLY,
+  ONE_MONTH_IN_SECONDS,
+} from '../constants';
 
 /* colors */
 const MSG_RED = chalk.red;
@@ -24,9 +31,9 @@ const MSG_GREEN = chalk.green;
 const MSG_YELLOW = chalk.yellow;
 
 /* types */
-import type { VestingData } from 'typescript/vestingTree';
 import type { MLTToken as IMLTToken } from 'build/types';
 import type { HardhatRuntimeEnvironment } from "hardhat/types";
+import type { VestingScheduleWithProof } from '@mintlayer/vesting-tree/dist/types';
 
 let tree: VestingTree | undefined;
 
@@ -37,7 +44,12 @@ const SUBMIT_RELEASED_VESTING = 'SUBMIT_RELEASED_VESTING';
 const MERKLETREE_RELEASE_DATES = 'MERKLETREE_RELEASE_DATES';
 
 task('merkletree').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
-    tree = new VestingTree({ users: VESTING_USERS });
+    tree = new VestingTree({
+      users: VESTING_USERS,
+      allocations: ALLOCATIONS,
+      balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
+      oneMothInSeconds: ONE_MONTH_IN_SECONDS
+    });
 
     const questions = await prompt({
       type: 'list',
@@ -84,14 +96,14 @@ subtask(
 
     const MLTToken = await ethers.getContract<IMLTToken>('MLTToken');
 
-    const [ name, symbol, decimals, _VESTING_START_TIMESTAMP ] = await Promise.all([
+    const [ name, symbol, decimals, START_TIMESTAMP ] = await Promise.all([
       MLTToken.name(),
       MLTToken.symbol(),
       MLTToken.decimals(),
-      MLTToken.VESTING_START_TIMESTAMP(),
+      MLTToken.startTimestampByRootHash(tree.getHexRoot()),
     ]);
 
-    const VESTING_START_TIMESTAMP = _VESTING_START_TIMESTAMP.toNumber();
+    const VESTING_START_TIMESTAMP = START_TIMESTAMP.toNumber();
     const cache = await getMerkletreeCache({ cacheKey: MLTToken.address });
 
     {
@@ -241,7 +253,7 @@ subtask(
 
     if(batches.length) {
       estimateGasPerBatch = await MLTToken.estimateGas.batchReleaseVested(
-        batches[0], { gasLimit }
+        batches[0], tree.getHexRoot(), { gasLimit }
       );
 
     } else {
@@ -336,7 +348,7 @@ subtask(
         twirlTimer(`${batches.length - remainer.length} of ${batches.length} batch released`);
 
         try {
-          const tx = await MLTToken.batchReleaseVested(user, { gasLimit });
+          const tx = await MLTToken.batchReleaseVested(user, tree.getHexRoot(), { gasLimit });
           await tx.wait();
 
         } catch(error) {
@@ -363,12 +375,12 @@ subtask(MERKLETREE_RELEASE_DATES, 'Show all release dates in a human readable fo
 
     const MLTToken = await ethers.getContract<IMLTToken>('MLTToken');
 
-    const VESTING_START_TIMESTAMP = (await MLTToken.VESTING_START_TIMESTAMP()).toNumber();
+    const START_TIMESTAMP = (await MLTToken.startTimestampByRootHash(tree.getHexRoot())).toNumber();
 
     const cliffs = tree.getCliffs();
 
     cliffs.forEach((cliff, index) => {
-      const timestamp = (VESTING_START_TIMESTAMP + cliff) * 1000;
+      const timestamp = (START_TIMESTAMP + cliff) * 1000;
       const representation = 'complete';
       let message = `vesting ${index + 1}: ${formatISO(timestamp, { representation })}`;
 
@@ -422,7 +434,8 @@ subtask(MERKLETREE_EXPORT)
     const MLTToken = await ethers.getContract<IMLTToken>('MLTToken');
 
     const FILENAME = 'vesting_schedule';
-    const VESTING_START_TIMESTAMP = (await MLTToken.VESTING_START_TIMESTAMP()).toNumber();
+    const root = tree.getHexRoot();
+    const START_TIMESTAMP = (await MLTToken.startTimestampByRootHash(root)).toNumber();
 
     const vestingSchedulesOrdered = tree.vestingSchedules.sort((a, b) => {
       if(a.vestingCliff < b.vestingCliff) return -1;
@@ -435,7 +448,7 @@ subtask(MERKLETREE_EXPORT)
       twirlTimer(`Preparing data ${i + 1} of ${LENGTH}`);
 
       const { address, amount, vestingCliff } = item;
-      const timestamp = VESTING_START_TIMESTAMP + vestingCliff;
+      const timestamp = START_TIMESTAMP + vestingCliff;
 
       const date = new Date(timestamp);
       const dateISO = formatISO(date, { representation: 'date' });
@@ -522,15 +535,10 @@ subtask(MERKLETREE_EXPORT_DAPP)
 
     const MLTTokenDeployBlockNumber = MLTTokenDeployment.receipt.blockNumber;
 
-    const VESTING_START_TIMESTAMP = (await MLTToken.VESTING_START_TIMESTAMP()).toNumber();
+    const root = tree.getHexRoot();
+    const START_TIMESTAMP = (await MLTToken.startTimestampByRootHash(root)).toNumber();
 
-    const vestingData: VestingData = {
-      startDateTimestamp: VESTING_START_TIMESTAMP,
-      endDateTimestamp: 0,
-      vestingSchedules: [],
-      contractAddress: MLTToken.address,
-      usersByAddress: {},
-    };
+    const vestingSchedules: VestingScheduleWithProof[] = [];
 
     let endDateTimestamp = 0;
 
@@ -545,65 +553,35 @@ subtask(MERKLETREE_EXPORT_DAPP)
       twirlTimer(`Preparing data for admin ${count} of ${tree.vestingSchedules.length}`);
 
       const hash = tree.hash(vesting);
-      const proof = tree.getHexProof(hash);
+      const proof = JSON.stringify(tree.getHexProof(hash));
 
-      vestingData.vestingSchedules.push({
+      vestingSchedules.push({
         ...vesting,
         proof,
         hash,
       })
     }
 
-    vestingData.vestingSchedules = vestingData.vestingSchedules.sort((a, b) => {
+    const vestingSchedulesSort = vestingSchedules.sort((a, b) => {
       if(a.vestingCliff < b.vestingCliff) return -1;
       if(a.vestingCliff > b.vestingCliff) return 1;
       return 0;
     })
 
-    vestingData.endDateTimestamp = VESTING_START_TIMESTAMP + endDateTimestamp;
+    endDateTimestamp += START_TIMESTAMP;
+
+    const FILENAME_API = 'vesting_data_api';
+    const FILENAME_DAPP = 'vesting_data_dapp';
+
+    const fileApiPath = path.join(process.cwd(), `${FILENAME_API}.ts`);
+    const fileDappPath = path.join(process.cwd(), `${FILENAME_DAPP}.ts`);
+
+    const fileApiHandle = await open(fileApiPath, 'w+');
+    const fileDappHandle = await open(fileDappPath, 'w+');
 
     console.log('\r'); // Line break for better readability of messages
 
-    let count = 0;
-    const LENGTH = Object.keys(tree.groupedByUsers).length;
-
-    for(const key in tree.groupedByUsers) {
-      twirlTimer(`Preparing data for user ${++count} of ${LENGTH}`);
-
-      let totalVesting = BigNumber.from(0);
-      const vestingSchedules = tree.groupedByUsers[key];
-
-      const schedulesOrdered = vestingSchedules.sort((a, b) => {
-        if(a.vestingCliff < b.vestingCliff) return -1;
-        if(a.vestingCliff > b.vestingCliff) return 1;
-        return 0;
-      })
-
-      const vestingSchedulesOrderedWidthProof = schedulesOrdered.map((el) => {
-        totalVesting = totalVesting.add(el.amount);
-        const hash = tree.hash(el);
-        const proof = tree.getHexProof(tree.hash(el));
-
-        return { ...el, proof, hash }
-      })
-
-      const endVestingCliff = schedulesOrdered[schedulesOrdered.length - 1].vestingCliff;
-
-      vestingData.usersByAddress[`${key.toUpperCase()}`] = {
-        endDateTimestamp: VESTING_START_TIMESTAMP + endVestingCliff,
-        allocationsType: schedulesOrdered[0].allocationsType,
-        totalVesting: totalVesting.toString(),
-        vestingSchedules: vestingSchedulesOrderedWidthProof,
-      };
-    }
-
-    const FILENAME = 'vesting_data_dapp';
-    const filePath = path.join(process.cwd(), `${FILENAME}.ts`);
-    const fileHandle = await open(filePath, 'w+');
-
-    console.log('\r'); // Line break for better readability of messages
-
-    if(!fileHandle) {
+    if(!fileDappHandle || !fileApiHandle) {
       console.log(`\n${MSG_RED('✘')} Export error`);
       return;
     }
@@ -611,10 +589,9 @@ subtask(MERKLETREE_EXPORT_DAPP)
     const _ALLOCATION_TOTAL_SUPPLY = parseEther(`${ALLOCATION_TOTAL_SUPPLY}`).toString();
 
     let data = '/* Autogenerated file. Do not edit manually. */\n\n';
-    data += `export const MLTTokenAddress = '${MLTToken.address}';\n\n`;
-    data += `export const MLTTokenDeployBlockNumber = ${MLTTokenDeployBlockNumber};\n\n`;
     data += `export const ALLOCATION_TOTAL_SUPPLY = '${_ALLOCATION_TOTAL_SUPPLY}';\n\n`;
-    data += `export const VESTING_START_TIMESTAMP = ${VESTING_START_TIMESTAMP};\n\n`;
+    data += `export const VESTING_START_TIMESTAMP = ${START_TIMESTAMP};\n\n`;
+    data += `export const VESTING_END_TIMESTAMP = ${endDateTimestamp};\n\n`;
     data += `export const BATCH_SIZE = ${BATCH_SIZE};\n\n`;
     data += `export const NETWORK_CHAIN_ID = ${networkInfo.chainId};\n\n`;
     data += `export const NETWORK_URL_RPC = '${networkInfo.rpcUrl}';\n\n`;
@@ -623,10 +600,16 @@ subtask(MERKLETREE_EXPORT_DAPP)
     data += `export const NETWORK_CURRENCY_SYMBOL = '${networkInfo.nativeCurrency.symbol}';\n\n`;
     data += `export const NETWORK_DECIMALS = '${networkInfo.nativeCurrency.decimals}';\n\n`;
     data += `export const NETWORK_EXPLORER_URL = '${networkInfo.blockExplorerUrl}';\n\n`;
-    data += `export const VESTING_DATA = ${JSON.stringify(vestingData, null, 2)}`;
 
-    await fileHandle.writeFile(data, { encoding: 'utf-8' });
-    await fileHandle?.close();
+    await fileDappHandle.writeFile(data, { encoding: 'utf-8' });
+    await fileDappHandle?.close();
+
+    data += `export const MLTTokenAddress = '${MLTToken.address}';\n\n`;
+    data += `export const MLTTokenDeployBlockNumber = ${MLTTokenDeployBlockNumber};\n\n`;
+    data += `export const VESTING_SCHEDULES = ${JSON.stringify(vestingSchedulesSort, null, 2)}`;
+
+    await fileApiHandle.writeFile(data, { encoding: 'utf-8' });
+    await fileApiHandle?.close();
 
     console.log(`\n${MSG_GREEN('✔')} Successful export 🥳🎉`);
   })

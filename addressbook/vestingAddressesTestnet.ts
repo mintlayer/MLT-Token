@@ -1,5 +1,5 @@
 import { parseEther } from "ethers/lib/utils";
-import { VestingUsers } from "../typescript/vestingTree";
+import { VestingUsers } from "@mintlayer/vesting-tree/dist/types";
 
 // https://docs.google.com/spreadsheets/d/1SWH3Y_pQOJFLOXgvVp23_c8iU_q3PEXPOPbRyiUfMvk/edit#gid=1038648390
 const launch: VestingUsers[] = [
@@ -5014,7 +5014,12 @@ const treasury: VestingUsers[] = [
   {
     address: "0xe2A234EfF72C66B5Fa77D22449DaDcDC5f6558a9",
     allocationsType: "seed",
-    amount: parseEther('50000000'),
+    amount: parseEther('40000000'),
+  },
+  {
+    address: "0xBc67849Ae7A1dc56b457eC4FAA504023f6cBDDb5",
+    allocationsType: "seed",
+    amount: parseEther('10000000'),
   },
   {
     address: "0x7179fDEf7bcC5a81ca87809068E56235b2A98225",

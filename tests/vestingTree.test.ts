@@ -1,9 +1,9 @@
 import { BigNumber } from 'ethers';
 import { deployments, ethers } from 'hardhat';
-import { parseEther } from 'ethers/lib/utils';
+import { parseEther, formatEther } from 'ethers/lib/utils';
+import { VestingTree } from '@mintlayer/vesting-tree';
 
 import { assert, expect } from './utils/chaiSetup';
-import { VestingTree } from '../helpers/VestingTree';
 import { VESTING_USERS } from '../addressbook/vestingAddresses';
 import {
   ALLOCATIONS,
@@ -15,7 +15,7 @@ import {
 
 /* types */
 import type { MLTToken as IMLTToken } from 'build/types';
-import type { PartialRecord, AllocationsType } from 'typescript/vestingTree';
+import type { AllocationsType } from '@mintlayer/vesting-tree/dist/types';
 
 let tree: VestingTree | null = null;
 
@@ -23,7 +23,12 @@ async function setup() {
   await deployments.fixture(['MLTToken']);
 
   if(!tree) {
-    tree = new VestingTree({ users: VESTING_USERS });
+    tree = new VestingTree({
+      users: VESTING_USERS,
+      allocations: ALLOCATIONS,
+      balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
+      oneMothInSeconds: ONE_MONTH_IN_SECONDS
+    });
   }
 
   const MLTToken = await ethers.getContract<IMLTToken>('MLTToken');
@@ -46,9 +51,8 @@ describe('Vesting merkle tree', () => {
     const { tree, contracts: { MLTToken }} = await setup();
 
     const ROOT = tree.getHexRoot();
-    const VESTING_TREE_ROOT = await MLTToken.VESTING_TREE_ROOT();
-
-    expect(VESTING_TREE_ROOT).to.be.equal(ROOT);
+    const exist = await MLTToken.rootWhitelist(ROOT);
+    assert.ok(exist);
   });
 
   it('The corresponding amounts of tokens must be unlocked for each release date', async () => {
@@ -57,7 +61,7 @@ describe('Vesting merkle tree', () => {
     // Multiplier to prevent underflow for numbers too small to use with BigNumber
     const DENOMINATOR = 10_000;
 
-    Object.keys(ALLOCATIONS).map((allocationType: AllocationsType) => {
+    Object.keys(ALLOCATIONS).forEach((allocationType: AllocationsType) => {
       const { percentage, vestingInfo } = ALLOCATIONS[allocationType];
 
       if(vestingInfo !== 'unlocked') {
@@ -133,7 +137,7 @@ describe('Vesting merkle tree', () => {
     });
   })
 
-  it('The sum of the percentages for all user groups must be equal to 100%', async () => {
+  it('The sum of the percentages for all pools must be equal to 100%', async () => {
     const vestingTotal = Object.entries(ALLOCATIONS).reduce((prev, current) => {
       const [ _, value ] = current;
       return prev.add(value.percentage);
@@ -141,10 +145,12 @@ describe('Vesting merkle tree', () => {
 
     expect(vestingTotal).to.be.equal(parseEther('1'));
 
-    const pools: PartialRecord<keyof typeof POOLS_SUPPLY, {
+    type Pools = {[allocationType: string]: {
       weight: BigNumber;
       amount: BigNumber;
-    }> = {};
+    }}
+
+    const pools: Pools = {};
 
     VESTING_USERS.forEach((user) => {
       const {
@@ -162,7 +168,7 @@ describe('Vesting merkle tree', () => {
       }
     });
 
-    Object.entries(pools).map(([key, value]) => {
+    Object.entries(pools).forEach(([key, value]) => {
       const { weight, amount } = value;
 
       const supply: number = POOLS_SUPPLY[key];
@@ -187,10 +193,11 @@ describe('Vesting merkle tree', () => {
   it('A merkle proof should be checked on the chain', async () => {
     const { tree, contracts: { MLTToken }} = await setup();
 
+    const root = tree.getHexRoot();
     const schedule = tree.vestingSchedules[0];
     const { address, amount, vestingCliff } = schedule;
     const proof = tree.getHexProof(tree.hash(schedule));
-    const verify = await MLTToken.verifyProof(address, amount, vestingCliff, proof);
+    const verify = await MLTToken.verifyProof(address, amount, vestingCliff, root, proof);
     assert.ok(verify);
   });
 })

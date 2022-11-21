@@ -5,7 +5,7 @@ import { parseEther } from 'ethers/lib/utils';
 
 /* types */
 import type { NetworksInfo } from './typescript/constants';
-import type { Allocations, VestingTypes } from "typescript/vestingTree";
+import type { Allocations, PoolsSupply, VestingTypes } from "@mintlayer/vesting-tree/dist/types";
 
 export const {
   REPORT_GAS,
@@ -17,6 +17,7 @@ export const {
   COINMARKETCAP_API,
   ETHERSCAN_FTM_API_KEY,
   ETHERSCAN_FUJI_API_KEY,
+  TREASURER_WALLET_PRIVKEY,
 } = process.env;
 
 export const IS_PRODUCTION = false;
@@ -80,7 +81,7 @@ export const VESTING_TYPES: VestingTypes = {
   },
 }
 
-export const POOLS_SUPPLY = {
+export const POOLS_SUPPLY: PoolsSupply = {
   preSeed: 2_500_000,
   seed: 54_600_000,
   longVesting: 52_000_000,

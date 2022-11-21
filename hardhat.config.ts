@@ -21,6 +21,7 @@ import {
   COINMARKETCAP_API,
   ETHERSCAN_FTM_API_KEY,
   ETHERSCAN_FUJI_API_KEY,
+  TREASURER_WALLET_PRIVKEY,
 } from './constants';
 
 /* tasks */
@@ -46,7 +47,16 @@ const config: HardhatUserConfig = {
   solidity: {
     compilers: [
       {
-        version: '0.8.8',
+        version: '0.8.2',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 10000,
+          },
+        },
+      },
+      {
+        version: '0.8.0',
         settings: {
           optimizer: {
             enabled: true,
@@ -97,6 +107,16 @@ const config: HardhatUserConfig = {
     hardhat: {
       tags: ['local'],
       loggingEnabled: false,
+      accounts: [
+        {
+          privateKey: WALLET_PRIVKEY,
+          balance: '100000000000000000000000',
+        },
+        {
+          privateKey: TREASURER_WALLET_PRIVKEY,
+          balance: '100000000000000000000000',
+        },
+      ],
       forking: {
         url: `https://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_API_KEY}`,
       }
@@ -104,19 +124,19 @@ const config: HardhatUserConfig = {
     ropsten: {
       tags: ['staging'],
       loggingEnabled: false,
-      accounts: [ WALLET_PRIVKEY ],
+      accounts: [ WALLET_PRIVKEY, TREASURER_WALLET_PRIVKEY ],
       url: getProviderInfuraURL('ropsten'),
     },
     rinkeby: {
       tags: ['staging'],
-      accounts: [ WALLET_PRIVKEY ],
+      accounts: [ WALLET_PRIVKEY, TREASURER_WALLET_PRIVKEY ],
       url: getProviderInfuraURL('rinkeby'),
     },
     fuji: {
       chainId: 43113,
       tags: ['staging'],
       loggingEnabled: true,
-      accounts: [ WALLET_PRIVKEY ],
+      accounts: [ WALLET_PRIVKEY, TREASURER_WALLET_PRIVKEY ],
       url: 'https://api.avax-test.network/ext/bc/C/rpc',
     },
     fantomtestnet: {
@@ -124,8 +144,14 @@ const config: HardhatUserConfig = {
       tags: ['staging'],
       loggingEnabled: true,
       url: "https://rpc.testnet.fantom.network",
-      accounts: [ WALLET_PRIVKEY ],
+      accounts: [ WALLET_PRIVKEY, TREASURER_WALLET_PRIVKEY ],
     },
+    mumbai: {
+      chainId: 80001,
+      tags: ['staging'],
+      url: 'https://rpc-mumbai.maticvigil.com',
+      accounts: [ WALLET_PRIVKEY, TREASURER_WALLET_PRIVKEY ],
+    }
   },
   typechain: {
     target: 'ethers-v5',
@@ -145,10 +171,10 @@ const config: HardhatUserConfig = {
   },
   namedAccounts: {
     deployer: 0,
-    user1: 1,
-    user2: 2,
-    user3: 3,
-    user4: 4,
+    treasurer1: 1,
+    user1: 2,
+    user2: 3,
+    user3: 4,
   },
   mocha: {
     timeout: 1000 * 60 * 60 * 1, // 1 hour in milliseconds
