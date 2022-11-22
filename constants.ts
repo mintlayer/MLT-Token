@@ -54,30 +54,35 @@ export const VESTING_TYPES: VestingTypes = {
     monthly: [0.08], // 8% monthly over 11 months
     months: [11],
     cliff: 0,
+    label: '1',
   },
   type2: {
     unlocking: 0.1, // 10%
     monthly: [0.06], // 6% monthly over 15 months
     months: [15],
     cliff: 0,
+    label: '2',
   },
   type3: {
     unlocking: 0.1, // 10%
     monthly: [0.05], // 5% monthly over 18 months
     months: [18],
     cliff: 0,
+    label: '3',
   },
   type4: {
     unlocking: 0, // 0%
     monthly: [0.05], // 5% monthly over 20 months
     months: [20],
     cliff: ONE_MONTH_IN_SECONDS * 4, // 4 months represented in milliseconds. Months of 30 days are assumed.
+    label: '4',
   },
   type5: {
     unlocking: 0, // 0%
     monthly: [0.02, 0.04], // 2% monthly over 10 months, then 4% over 20 months
     months: [10, 20],
     cliff: ONE_MONTH_IN_SECONDS * 4, // 4 months represented in milliseconds. Months of 30 days are assumed.
+    label: '5',
   },
 }
 
@@ -131,7 +136,6 @@ export const ALLOCATIONS: Allocations = {
     vestingInfo: VESTING_TYPES.type4
   },
 }
-
 
 export const NETWORKS: NetworksInfo = {
   fuji: {

@@ -391,6 +391,7 @@ describe('MLTToken contract', () => {
           monthly: [0.06],
           months: [15],
           cliff: 0,
+          label: '1'
         }
       }
     };
