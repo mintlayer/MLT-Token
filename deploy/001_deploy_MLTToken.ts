@@ -6,7 +6,6 @@ import {
   ALLOCATIONS,
   ALLOCATION_TOTAL_SUPPLY,
   VESTING_START_TIMESTAMP,
-  ONE_MONTH_IN_SECONDS
 } from '../constants';
 
 /* types */
@@ -23,7 +22,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     users: VESTING_USERS,
     allocations: ALLOCATIONS,
     balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
-    oneMothInSeconds: ONE_MONTH_IN_SECONDS
+    vestingStartTimestamp: VESTING_START_TIMESTAMP
   });
   const ROOT = tree.getHexRoot();
 
@@ -39,12 +38,18 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     log: true,
     from: deployer,
     args: [
-      'MLTToken', // string memory _name
-      'MLT', // string memory _symbol
-      ALLOCATION_TOTAL_SUPPLY, // string memory _supply
-      ROOT, // _vestingTreeRoot Vesting tree root hash.
-      VESTING_START_TIMESTAMP, // _vestingStartTimestamp Timestamp of vesting start as seconds since the Unix epoch
-      proofSupply, // _proofSupply Proof of total supply
+      // string memory _name
+      'MLTToken',
+      // string memory _symbol
+      'MLT',
+      // string memory _supply
+      ALLOCATION_TOTAL_SUPPLY,
+      // _vestingTreeRoot Vesting tree root hash.
+      ROOT,
+      // _vestingStartTimestamp Timestamp of vesting start as seconds since the Unix epoch
+      VESTING_START_TIMESTAMP,
+      // _proofSupply Proof of total supply
+      proofSupply,
     ],
   })
 }

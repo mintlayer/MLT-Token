@@ -1,6 +1,8 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
+import dayjs from 'dayjs';
+
 import { parseEther } from 'ethers/lib/utils';
 
 /* types */
@@ -29,19 +31,12 @@ if(IS_PRODUCTION) {
 export const BATCH_SIZE = 50;
 export const GAS_LIMIT = 3_000_000;
 
-export const ONE_MONTH_IN_SECONDS = IS_PRODUCTION
-  // (2592000) A month of 30 days is assumed.
-  ? 60 * 60 * 24 * 30
-  // (360) For testing/simulation purposes, a month is represented as an hour. With the
-  // following scalar representation we can have a period of 12 months (one year) in 12 hours
-  : 60 * 60 * 24;
-
 export const ALLOCATION_TOTAL_SUPPLY = 400_000_000;
 
 // Timestamp of vesting start as seconds since the Unix epoch
 export const VESTING_START_TIMESTAMP = IS_PRODUCTION
   ? null
-  : Math.ceil(+new Date() / 1000);
+  : dayjs().unix();
 
 if(IS_PRODUCTION && !VESTING_START_TIMESTAMP) {
   throw new Error('No date was defined to start the vesting');
@@ -74,14 +69,20 @@ export const VESTING_TYPES: VestingTypes = {
     unlocking: 0, // 0%
     monthly: [0.05], // 5% monthly over 20 months
     months: [20],
-    cliff: ONE_MONTH_IN_SECONDS * 4, // 4 months represented in milliseconds. Months of 30 days are assumed.
+    // 4 months represented in milliseconds. Months of 30 days are assumed.
+    cliff: dayjs(VESTING_START_TIMESTAMP)
+      .add(4, 'month')
+      .unix() - dayjs(VESTING_START_TIMESTAMP).unix(),
     label: '4',
   },
   type5: {
     unlocking: 0, // 0%
     monthly: [0.02, 0.04], // 2% monthly over 10 months, then 4% over 20 months
     months: [10, 20],
-    cliff: ONE_MONTH_IN_SECONDS * 4, // 4 months represented in milliseconds. Months of 30 days are assumed.
+    // 4 months represented in milliseconds. Months of 30 days are assumed.
+    cliff: dayjs(VESTING_START_TIMESTAMP)
+      .add(4, 'month')
+      .unix() - dayjs(VESTING_START_TIMESTAMP).unix(),
     label: '5',
   },
 }

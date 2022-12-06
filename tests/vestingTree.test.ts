@@ -1,21 +1,21 @@
+import dayjs from 'dayjs';
 import { BigNumber } from 'ethers';
 import { deployments, ethers } from 'hardhat';
-import { parseEther, formatEther } from 'ethers/lib/utils';
+import { parseEther } from 'ethers/lib/utils';
 import { VestingTree } from '@mintlayer/vesting-tree';
 
 import { assert, expect } from './utils/chaiSetup';
+import { VESTING_START_TIMESTAMP } from '../constants';
 import { VESTING_USERS } from '../addressbook/vestingAddresses';
 import {
   ALLOCATIONS,
   POOLS_SUPPLY,
   VESTING_TYPES,
-  ONE_MONTH_IN_SECONDS,
   ALLOCATION_TOTAL_SUPPLY,
 } from '../constants';
 
 /* types */
 import type { MLTToken as IMLTToken } from 'build/types';
-import type { AllocationsType } from '@mintlayer/vesting-tree/dist/types';
 
 let tree: VestingTree | null = null;
 
@@ -26,8 +26,8 @@ async function setup() {
     tree = new VestingTree({
       users: VESTING_USERS,
       allocations: ALLOCATIONS,
+      vestingStartTimestamp: VESTING_START_TIMESTAMP,
       balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
-      oneMothInSeconds: ONE_MONTH_IN_SECONDS
     });
   }
 
@@ -58,10 +58,12 @@ describe('Vesting merkle tree', () => {
   it('The corresponding amounts of tokens must be unlocked for each release date', async () => {
     const { tree } = await setup();
 
+    const vestingStartTimestamp = dayjs.unix(VESTING_START_TIMESTAMP);
+
     // Multiplier to prevent underflow for numbers too small to use with BigNumber
     const DENOMINATOR = 10_000;
 
-    Object.keys(ALLOCATIONS).forEach((allocationType: AllocationsType) => {
+    Object.keys(ALLOCATIONS).forEach((allocationType: string) => {
       const { percentage, vestingInfo } = ALLOCATIONS[allocationType];
 
       if(vestingInfo !== 'unlocked') {
@@ -99,9 +101,15 @@ describe('Vesting merkle tree', () => {
           let unlockedTokensObtained = BigNumber.from(0);
 
           // Array with the length of the months in which the allocation releases will be made
-          [...new Array(month).keys()].forEach((cycle) => {
-            // 1 must be added because the cycle starts at 0.
-            const vestingCliff = cliff + (ONE_MONTH_IN_SECONDS * (cycle + 1 + prevCycle))
+          [...new Array(month).keys()].forEach((index) => {
+            // 1 must be added because the cycle must start at 1 and the index starts at 0.
+            const cycle = index + 1;
+
+            const vestingCliff = cliff + (
+              vestingStartTimestamp
+              .add(cycle + prevCycle, 'months')
+              .unix() - vestingStartTimestamp.unix()
+            );
 
             const vestingSchedules = tree.allocationTypeMapCliff[allocationType]?.[vestingCliff];
             if(vestingSchedules) {

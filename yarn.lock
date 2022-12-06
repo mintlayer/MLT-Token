@@ -704,16 +704,17 @@
     tweetnacl "^1.0.3"
     tweetnacl-util "^0.15.1"
 
-"@mintlayer/vesting-tree@^1.0.2":
-  version "1.0.2"
-  resolved "https://npm.pkg.github.com/download/@mintlayer/vesting-tree/1.0.2/425583bf2d0659f7955a8ab9fa123fde60c5c0bf#425583bf2d0659f7955a8ab9fa123fde60c5c0bf"
-  integrity sha512-hNZmRryTi2Jst1YMPONMzcck5DG1qrPFrO8eBlpgWhOQP2vAP7D18WKotmZlDe2yLWViQvohDrudM9JrTu5Yug==
+"@mintlayer/vesting-tree@^1.0.4":
+  version "1.0.4"
+  resolved "https://npm.pkg.github.com/download/@mintlayer/vesting-tree/1.0.4/f1ddb0f5c71d19b8c0ac06dcef2ace3ee5e43537#f1ddb0f5c71d19b8c0ac06dcef2ace3ee5e43537"
+  integrity sha512-Ai+p2JGh8OWfPlhHooZ3C2KtsVbczBnEeZx5PWRm+o52dOcGEHBuhwmaE5tb2mpWwhDe35b+Ik/JE2at1JUThQ==
   dependencies:
     "@istanbuljs/nyc-config-typescript" "^1.0.2"
     "@tsconfig/node16" "^1.0.3"
     "@types/chai" "^4.3.4"
     "@types/mocha" "^10.0.0"
     chai "^4.3.7"
+    dayjs "^1.11.6"
     ethers "^5.7.2"
     keccak256 "^1.0.6"
     merkletreejs "^0.3.0"
@@ -3380,6 +3381,11 @@ date-fns@^2.28.0:
   version "2.29.3"
   resolved "https://registry.yarnpkg.com/date-fns/-/date-fns-2.29.3.tgz#27402d2fc67eb442b511b70bbdf98e6411cd68a8"
   integrity sha512-dDCnyH2WnnKusqvZZ6+jA1O51Ibt8ZMRNkDZdyAyK4YfbDwa/cEmuztzG5pk6hqlp9aSBPYcjOlktquahGwGeA==
+
+dayjs@^1.11.6:
+  version "1.11.6"
+  resolved "https://registry.yarnpkg.com/dayjs/-/dayjs-1.11.6.tgz#2e79a226314ec3ec904e3ee1dd5a4f5e5b1c7afb"
+  integrity sha512-zZbY5giJAinCG+7AGaw0wIhNZ6J8AhWuSXKvuc1KAyMiRsvGQWqh4L+MomvhdAYjN+lqvVCMq1I41e3YHvXkyQ==
 
 debug@2.6.9, debug@^2.2.0, debug@^2.3.3, debug@^2.6.8, debug@^2.6.9:
   version "2.6.9"

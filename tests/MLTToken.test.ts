@@ -12,7 +12,6 @@ import {
   ALLOCATIONS,
   ALLOCATION_TOTAL_SUPPLY,
   VESTING_START_TIMESTAMP,
-  ONE_MONTH_IN_SECONDS,
 } from '../constants';
 
 /* types */
@@ -29,8 +28,8 @@ async function setup() {
     tree = new VestingTree({
       users: VESTING_USERS,
       allocations: ALLOCATIONS,
+      vestingStartTimestamp: VESTING_START_TIMESTAMP,
       balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
-      oneMothInSeconds: ONE_MONTH_IN_SECONDS
     });
   }
 
@@ -403,7 +402,7 @@ describe('MLTToken contract', () => {
         balance,
         users: usersTGE,
         allocations,
-        oneMothInSeconds: ONE_MONTH_IN_SECONDS
+        vestingStartTimestamp: VESTING_START_TIMESTAMP,
       });
 
       const rootTreeAfterTGE = treeAfterTGE.getHexRoot();
@@ -422,7 +421,7 @@ describe('MLTToken contract', () => {
       balance: userBal,
       users: usersTGE,
       allocations,
-      oneMothInSeconds: ONE_MONTH_IN_SECONDS
+      vestingStartTimestamp: VESTING_START_TIMESTAMP,
     });
     const rootTreeAfterTGE = treeAfterTGE.getHexRoot();
     const proofRoot = treeAfterTGE.getHexProof(treeAfterTGE.balancehash(userBal));

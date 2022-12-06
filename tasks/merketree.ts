@@ -20,7 +20,7 @@ import {
   BATCH_SIZE,
   ALLOCATIONS,
   ALLOCATION_TOTAL_SUPPLY,
-  ONE_MONTH_IN_SECONDS,
+  VESTING_START_TIMESTAMP,
 } from '../constants';
 
 /* colors */
@@ -48,7 +48,7 @@ task('merkletree').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
       users: VESTING_USERS,
       allocations: ALLOCATIONS,
       balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
-      oneMothInSeconds: ONE_MONTH_IN_SECONDS
+      vestingStartTimestamp: VESTING_START_TIMESTAMP,
     });
 
     const questions = await prompt({
