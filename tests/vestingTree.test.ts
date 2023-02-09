@@ -6,7 +6,7 @@ import { VestingTree } from '@mintlayer/vesting-tree';
 
 import { assert, expect } from './utils/chaiSetup';
 import { VESTING_START_TIMESTAMP } from '../constants';
-import { VESTING_USERS } from '../addressbook/vestingAddresses';
+import { TREASURERS, VESTING_USERS } from '../addressbook/vestingAddresses';
 import {
   ALLOCATIONS,
   POOLS_SUPPLY,
@@ -23,11 +23,13 @@ async function setup() {
   await deployments.fixture(['MLTToken']);
 
   if(!tree) {
+    if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid!');
     tree = new VestingTree({
       users: VESTING_USERS,
       allocations: ALLOCATIONS,
-      vestingStartTimestamp: VESTING_START_TIMESTAMP,
+      vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
       balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
+      treasurers: TREASURERS,
     });
   }
 
@@ -57,8 +59,6 @@ describe('Vesting merkle tree', () => {
 
   it('The corresponding amounts of tokens must be unlocked for each release date', async () => {
     const { tree } = await setup();
-
-    const vestingStartTimestamp = dayjs.unix(VESTING_START_TIMESTAMP);
 
     // Multiplier to prevent underflow for numbers too small to use with BigNumber
     const DENOMINATOR = 10_000;
@@ -102,14 +102,14 @@ describe('Vesting merkle tree', () => {
 
           // Array with the length of the months in which the allocation releases will be made
           [...new Array(month).keys()].forEach((index) => {
+            if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid!');
+
             // 1 must be added because the cycle must start at 1 and the index starts at 0.
             const cycle = index + 1;
 
-            const vestingCliff = cliff + (
-              vestingStartTimestamp
+            const vestingCliff = cliff + VESTING_START_TIMESTAMP
               .add(cycle + prevCycle, 'months')
-              .unix() - vestingStartTimestamp.unix()
-            );
+              .diff(VESTING_START_TIMESTAMP, 'seconds')
 
             const vestingSchedules = tree.allocationTypeMapCliff[allocationType]?.[vestingCliff];
             if(vestingSchedules) {

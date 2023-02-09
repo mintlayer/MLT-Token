@@ -11,8 +11,9 @@ import { formatEther, formatUnits, parseEther } from 'ethers/lib/utils';
 
 import { deepCopy } from '../helpers/deepCopy';
 import { twirlTimer } from '../helpers/twirlTimer';
-import { VESTING_USERS } from '../addressbook/vestingAddresses';
 import { fetchCoinGeckoPrices } from '../helpers/fetchCoinGeckoPrices';
+import { vestingTreeExportData } from '../helpers/vestingTreeExportData';
+import { TREASURERS, VESTING_USERS } from '../addressbook/vestingAddresses';
 import { getMerkletreeCache, setMerkletreeCache } from '../helpers/merkletreeCache';
 import {
   NETWORKS,
@@ -31,7 +32,7 @@ const MSG_GREEN = chalk.green;
 const MSG_YELLOW = chalk.yellow;
 
 /* types */
-import type { MLTToken as IMLTToken } from 'build/types';
+import type { MLTToken as IMLTToken } from '../build/types';
 import type { HardhatRuntimeEnvironment } from "hardhat/types";
 import type { VestingScheduleWithProof } from '@mintlayer/vesting-tree/dist/types';
 
@@ -44,39 +45,42 @@ const SUBMIT_RELEASED_VESTING = 'SUBMIT_RELEASED_VESTING';
 const MERKLETREE_RELEASE_DATES = 'MERKLETREE_RELEASE_DATES';
 
 task('merkletree').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
-    tree = new VestingTree({
-      users: VESTING_USERS,
-      allocations: ALLOCATIONS,
-      balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
-      vestingStartTimestamp: VESTING_START_TIMESTAMP,
-    });
+  if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid');
 
-    const questions = await prompt({
-      type: 'list',
-      name: 'subtask',
-      message: 'Select a task to run:',
-      choices: [
-        {
-          name: 'Release all vested tokens which are already at release date or later',
-          value: SUBMIT_RELEASED_VESTING
-        },
-        {
-          name: 'Show all release dates in a human readable format',
-          value: MERKLETREE_RELEASE_DATES
-        },
-        {
-          name: 'Export the vesting list and their respective merkle proof',
-          value: MERKLETREE_EXPORT
-        },
-        {
-          name: 'Export data for the dapp',
-          value: MERKLETREE_EXPORT_DAPP
-        },
-      ]
-    });
+  tree = new VestingTree({
+    users: VESTING_USERS,
+    allocations: ALLOCATIONS,
+    balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
+    vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
+    treasurers: TREASURERS,
+  });
 
-    await hre.run(questions.subtask);
-  })
+  const questions = await prompt({
+    type: 'list',
+    name: 'subtask',
+    message: 'Select a task to run:',
+    choices: [
+      {
+        name: 'Release all vested tokens which are already at release date or later',
+        value: SUBMIT_RELEASED_VESTING
+      },
+      {
+        name: 'Show all release dates in a human readable format',
+        value: MERKLETREE_RELEASE_DATES
+      },
+      {
+        name: 'Export the vesting list and their respective merkle proof',
+        value: MERKLETREE_EXPORT
+      },
+      {
+        name: 'Export data for the dapp',
+        value: MERKLETREE_EXPORT_DAPP
+      },
+    ]
+  });
+
+  await hre.run(questions.subtask);
+})
 
 subtask(
   SUBMIT_RELEASED_VESTING,
@@ -100,7 +104,7 @@ subtask(
       MLTToken.name(),
       MLTToken.symbol(),
       MLTToken.decimals(),
-      MLTToken.startTimestampByRootHash(tree.getHexRoot()),
+      MLTToken.VESTING_START_TIMESTAMP(),
     ]);
 
     const VESTING_START_TIMESTAMP = START_TIMESTAMP.toNumber();
@@ -144,7 +148,7 @@ subtask(
     const block = await ethers.provider.getBlock(blockNumber);
     const gasLimit = GAS_LIMIT;
 
-    const vestingReadyToRelease: IMLTToken.UserStruct[] = [];
+    const vestingReadyToRelease: IMLTToken.VestingDataStruct[] = [];
 
     // Filter the vesting that are already due to be claimed
     const vestingAlreadyOnDate = tree.vestingSchedules.filter((vestingSchdule) => {
@@ -164,6 +168,8 @@ subtask(
 
       const result = await Promise.allSettled(
         batch.map(async (vestingSchedule, index) => {
+          if(!tree) throw new Error('tree invalid!');
+
           try {
             const hash = tree.hash(vestingSchedule);
 
@@ -184,7 +190,10 @@ subtask(
         })
       );
 
+
       result.forEach((item) => {
+        if(!tree) throw new Error('tree invalid!');
+
         if(item.status == 'fulfilled') {
           if(item.value.error) {
             remainer.push(batch[item.value.index]);
@@ -228,7 +237,7 @@ subtask(
       )
     }
 
-    const batches: IMLTToken.UserStruct[][] = [];
+    const batches: IMLTToken.VestingDataStruct[][] = [];
     const gasPrice = await ethers.provider.getGasPrice();
     const gasPriceInETH = formatEther(gasPrice);
     const gasPriceInGwei = formatUnits(gasPrice, 'gwei');
@@ -375,7 +384,7 @@ subtask(MERKLETREE_RELEASE_DATES, 'Show all release dates in a human readable fo
 
     const MLTToken = await ethers.getContract<IMLTToken>('MLTToken');
 
-    const START_TIMESTAMP = (await MLTToken.startTimestampByRootHash(tree.getHexRoot())).toNumber();
+    const START_TIMESTAMP = (await MLTToken.VESTING_START_TIMESTAMP()).toNumber();
 
     const cliffs = tree.getCliffs();
 
@@ -433,9 +442,8 @@ subtask(MERKLETREE_EXPORT)
 
     const MLTToken = await ethers.getContract<IMLTToken>('MLTToken');
 
-    const FILENAME = 'vesting_schedule';
-    const root = tree.getHexRoot();
-    const START_TIMESTAMP = (await MLTToken.startTimestampByRootHash(root)).toNumber();
+    const FILENAME = 'vesting_schedules';
+    const START_TIMESTAMP = (await MLTToken.VESTING_START_TIMESTAMP()).toNumber();
 
     const vestingSchedulesOrdered = tree.vestingSchedules.sort((a, b) => {
       if(a.vestingCliff < b.vestingCliff) return -1;
@@ -445,6 +453,7 @@ subtask(MERKLETREE_EXPORT)
 
     const LENGTH = vestingSchedulesOrdered.length;
     const rows = vestingSchedulesOrdered.map((item, i) => {
+      if(!tree) throw new Error('tree invalid!');
       twirlTimer(`Preparing data ${i + 1} of ${LENGTH}`);
 
       const { address, amount, vestingCliff } = item;
@@ -520,55 +529,22 @@ subtask(MERKLETREE_EXPORT_DAPP)
       await deployments.fixture(['MLTToken']);
     }
 
-    const networkInfo = NETWORKS[network.name];
-
-    if(!networkInfo) {
-      throw new Error(
-        `Data is missing for the '${network.name}' network. Before proceeding, you must ` +
-        'complete the necessary information for the network in the file constants.ts'
-      );
-    }
-
     const MLTToken = await ethers.getContract<IMLTToken>('MLTToken');
 
-    const MLTTokenDeployment = (await deployments.getDeploymentsFromAddress(MLTToken.address))[0];
-
-    const MLTTokenDeployBlockNumber = MLTTokenDeployment.receipt.blockNumber;
-
-    const root = tree.getHexRoot();
-    const START_TIMESTAMP = (await MLTToken.startTimestampByRootHash(root)).toNumber();
-
-    const vestingSchedules: VestingScheduleWithProof[] = [];
-
-    let endDateTimestamp = 0;
-
-    for(const index in tree.vestingSchedules) {
-      const vesting = tree.vestingSchedules[index];
-
-      if(vesting.vestingCliff > endDateTimestamp) {
-        endDateTimestamp = vesting.vestingCliff;
-      }
-
-      const count = parseInt(index) + 1;
-      twirlTimer(`Preparing data for admin ${count} of ${tree.vestingSchedules.length}`);
-
-      const hash = tree.hash(vesting);
-      const proof = JSON.stringify(tree.getHexProof(hash));
-
-      vestingSchedules.push({
-        ...vesting,
-        proof,
-        hash,
-      })
-    }
-
-    const vestingSchedulesSort = vestingSchedules.sort((a, b) => {
-      if(a.vestingCliff < b.vestingCliff) return -1;
-      if(a.vestingCliff > b.vestingCliff) return 1;
-      return 0;
+    const {
+      root,
+      networkInfo,
+      startTimestamp,
+      endDateTimestamp,
+      vestingSchedules,
+      allocationTotalSupply,
+    } = await vestingTreeExportData({
+      tree,
+      network,
+      MLTToken,
     })
 
-    endDateTimestamp += START_TIMESTAMP;
+    const lastBlockBeforeDeployment = await ethers.provider.getBlockNumber();
 
     const FILENAME_API = 'vesting_data_api';
     const FILENAME_DAPP = 'vesting_data_dapp';
@@ -586,12 +562,12 @@ subtask(MERKLETREE_EXPORT_DAPP)
       return;
     }
 
-    const _ALLOCATION_TOTAL_SUPPLY = parseEther(`${ALLOCATION_TOTAL_SUPPLY}`).toString();
-
     let data = '/* Autogenerated file. Do not edit manually. */\n\n';
-    data += `export const ALLOCATION_TOTAL_SUPPLY = '${_ALLOCATION_TOTAL_SUPPLY}';\n\n`;
-    data += `export const VESTING_START_TIMESTAMP = ${START_TIMESTAMP};\n\n`;
+    data += `export const MLTTokenAddress = '${MLTToken.address}';\n\n`;
+    data += `export const ALLOCATION_TOTAL_SUPPLY = '${allocationTotalSupply}';\n\n`;
+    data += `export const VESTING_START_TIMESTAMP = ${startTimestamp};\n\n`;
     data += `export const VESTING_END_TIMESTAMP = ${endDateTimestamp};\n\n`;
+    data += `export const VESTING_TREE_ROOT = '${root}';\n\n`;
     data += `export const BATCH_SIZE = ${BATCH_SIZE};\n\n`;
     data += `export const NETWORK_CHAIN_ID = ${networkInfo.chainId};\n\n`;
     data += `export const NETWORK_URL_RPC = '${networkInfo.rpcUrl}';\n\n`;
@@ -600,13 +576,24 @@ subtask(MERKLETREE_EXPORT_DAPP)
     data += `export const NETWORK_CURRENCY_SYMBOL = '${networkInfo.nativeCurrency.symbol}';\n\n`;
     data += `export const NETWORK_DECIMALS = '${networkInfo.nativeCurrency.decimals}';\n\n`;
     data += `export const NETWORK_EXPLORER_URL = '${networkInfo.blockExplorerUrl}';\n\n`;
+    data += `export const ALLOCATIONS = ${JSON.stringify(ALLOCATIONS, null, 2)};\n\n`;
 
     await fileDappHandle.writeFile(data, { encoding: 'utf-8' });
     await fileDappHandle?.close();
 
-    data += `export const MLTTokenAddress = '${MLTToken.address}';\n\n`;
-    data += `export const MLTTokenDeployBlockNumber = ${MLTTokenDeployBlockNumber};\n\n`;
-    data += `export const VESTING_SCHEDULES = ${JSON.stringify(vestingSchedulesSort, null, 2)}`;
+    const treasurersWithProof = TREASURERS.map((treasurer) => {
+      const vestingTypeProof = tree?.getHexProof(tree.treasurerHash(treasurer));
+
+      return {
+        ...treasurer,
+        vestingTypeProof
+      }
+    })
+
+    data += `export const lastBlockBeforeDeployment = ${lastBlockBeforeDeployment};\n\n`;
+    data += `export const TREASURERS = ${JSON.stringify(treasurersWithProof, null, 2)};\n\n`;
+    data += `// @ts-ignore\n`;
+    data += `export const VESTING_SCHEDULES = ${JSON.stringify(vestingSchedules, null, 2)}`;
 
     await fileApiHandle.writeFile(data, { encoding: 'utf-8' });
     await fileApiHandle?.close();

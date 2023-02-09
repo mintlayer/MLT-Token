@@ -27,7 +27,7 @@ export async function getMerkletreeCache(params: GetCacheParams) {
     const cacheFileHandle = await open(cacheFile, 'a+');
     const dataString = await cacheFileHandle.readFile({ encoding: 'utf-8' });
 
-    let dataObj: ICache = JSON.parse(dataString || null);
+    let dataObj: ICache = JSON.parse(dataString || '');
 
     if(!dataObj) {
       dataObj = CACHE_DEFAULT;
@@ -64,7 +64,7 @@ export async function setMerkletreeCache(params: SetCacheParams) {
 
     const dataString = await cacheFileHandle.readFile({ encoding: 'utf-8' });
 
-    let cache: ICache = JSON.parse(dataString || null);
+    let cache: ICache = JSON.parse(dataString || '');
 
     if(!cache) {
       cache = CACHE_DEFAULT;
@@ -78,6 +78,7 @@ export async function setMerkletreeCache(params: SetCacheParams) {
     console.log(error);
 
     try {
+      // @ts-ignore
       await cacheFileHandle?.close();
     } catch(error) {
       console.log(error);

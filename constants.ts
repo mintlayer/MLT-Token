@@ -2,29 +2,38 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+
+dayjs.extend(utc);
 
 import { parseEther } from 'ethers/lib/utils';
 
 /* types */
 import type { NetworksInfo } from './typescript/constants';
-import type { Allocations, PoolsSupply, VestingTypes } from "@mintlayer/vesting-tree/dist/types";
+import type {
+  Allocation,
+  AllocationsType,
+  PoolsSupply,
+  VestingTypes
+} from "@mintlayer/vesting-tree/dist/types";
 
 export const {
   REPORT_GAS,
   TYPECHAIN_ON,
-  INFURA_API_KEY,
-  WALLET_PRIVKEY,
-  ALCHEMY_API_KEY,
+  WALLET_PRIVKEY = '',
   ETHERSCAN_API_KEY,
   COINMARKETCAP_API,
-  ETHERSCAN_FTM_API_KEY,
-  ETHERSCAN_FUJI_API_KEY,
-  TREASURER_WALLET_PRIVKEY,
+  ETHERSCAN_FTM_API_KEY = '',
+  ETHERSCAN_FUJI_API_KEY = '',
+  MUMBAI_ALCHEMY_API_KEY,
+  TREASURER_WALLET_PRIVKEY = '',
+  ETHERSCAN_MUMBAI_API_KEY = '',
+  ETH_MAINNET_ALCHEMY_API_KEY,
 } = process.env;
 
-export const IS_PRODUCTION = false;
+export const IS_PRODUCTIVE = false;
 
-if(IS_PRODUCTION) {
+if(IS_PRODUCTIVE) {
   throw new Error('Before moving to productive environment run a double validation of the variables/settings and then remove this error');
 }
 
@@ -34,13 +43,15 @@ export const GAS_LIMIT = 3_000_000;
 export const ALLOCATION_TOTAL_SUPPLY = 400_000_000;
 
 // Timestamp of vesting start as seconds since the Unix epoch
-export const VESTING_START_TIMESTAMP = IS_PRODUCTION
+export const VESTING_START_TIMESTAMP = IS_PRODUCTIVE
   ? null
-  : dayjs().unix();
+  : dayjs.utc('2019-02-02 04:00:00');
 
-if(IS_PRODUCTION && !VESTING_START_TIMESTAMP) {
-  throw new Error('No date was defined to start the vesting');
+if(IS_PRODUCTIVE && !VESTING_START_TIMESTAMP) {
+  throw new Error('No date was defined to start the vesting schedule');
 }
+
+if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid');
 
 export const VESTING_TYPES: VestingTypes = {
   unlocked: 'unlocked',
@@ -69,20 +80,16 @@ export const VESTING_TYPES: VestingTypes = {
     unlocking: 0, // 0%
     monthly: [0.05], // 5% monthly over 20 months
     months: [20],
-    // 4 months represented in milliseconds. Months of 30 days are assumed.
-    cliff: dayjs(VESTING_START_TIMESTAMP)
-      .add(4, 'month')
-      .unix() - dayjs(VESTING_START_TIMESTAMP).unix(),
+    // 4 months represented in seconds. Months of 30 days are assumed.
+    cliff: VESTING_START_TIMESTAMP.add(4, 'months').diff(VESTING_START_TIMESTAMP, 'seconds'),
     label: '4',
   },
   type5: {
     unlocking: 0, // 0%
     monthly: [0.02, 0.04], // 2% monthly over 10 months, then 4% over 20 months
     months: [10, 20],
-    // 4 months represented in milliseconds. Months of 30 days are assumed.
-    cliff: dayjs(VESTING_START_TIMESTAMP)
-      .add(4, 'month')
-      .unix() - dayjs(VESTING_START_TIMESTAMP).unix(),
+    // 4 months represented in seconds. Months of 30 days are assumed.
+    cliff: VESTING_START_TIMESTAMP.add(4, 'months').diff(VESTING_START_TIMESTAMP, 'seconds'),
     label: '5',
   },
 }
@@ -99,42 +106,53 @@ export const POOLS_SUPPLY: PoolsSupply = {
   companyReserve: 106_900_000,
 }
 
+type Allocations = Record<AllocationsType, Allocation & { label: string }>;
+
 export const ALLOCATIONS: Allocations = {
   preSeed: {
     percentage: parseEther(`${POOLS_SUPPLY.preSeed / ALLOCATION_TOTAL_SUPPLY}`),
-    vestingInfo: VESTING_TYPES.type4
+    vestingInfo: VESTING_TYPES.type4,
+    label: 'Pre-Seed'
   },
   seed: {
     percentage: parseEther(`${POOLS_SUPPLY.seed / ALLOCATION_TOTAL_SUPPLY}`),
-    vestingInfo: VESTING_TYPES.type2
+    vestingInfo: VESTING_TYPES.type2,
+    label: 'Seed'
   },
   marketing: {
     percentage: parseEther(`${POOLS_SUPPLY.marketing / ALLOCATION_TOTAL_SUPPLY}`),
-    vestingInfo: VESTING_TYPES.type1
+    vestingInfo: VESTING_TYPES.type1,
+    label: 'Marketing'
   },
   longVesting: {
     percentage: parseEther(`${POOLS_SUPPLY.longVesting / ALLOCATION_TOTAL_SUPPLY}`),
-    vestingInfo: VESTING_TYPES.type5
+    vestingInfo: VESTING_TYPES.type5,
+    label: 'Strategic sale - Long Vesting'
   },
   shortVesting: {
     percentage: parseEther(`${POOLS_SUPPLY.shortVesting / ALLOCATION_TOTAL_SUPPLY}`),
-    vestingInfo: VESTING_TYPES.type2
+    vestingInfo: VESTING_TYPES.type2,
+    label: 'Strategic sale - Short Vesting'
   },
   development: {
     percentage: parseEther(`${POOLS_SUPPLY.development / ALLOCATION_TOTAL_SUPPLY}`),
-    vestingInfo: VESTING_TYPES.type4
+    vestingInfo: VESTING_TYPES.type4,
+    label: 'Development'
   },
   community: {
     percentage: parseEther(`${POOLS_SUPPLY.community / ALLOCATION_TOTAL_SUPPLY}`),
-    vestingInfo: VESTING_TYPES.type3
+    vestingInfo: VESTING_TYPES.type3,
+    label: 'Community'
   },
   companyReserve: {
     percentage: parseEther(`${POOLS_SUPPLY.companyReserve / ALLOCATION_TOTAL_SUPPLY}`),
-    vestingInfo: VESTING_TYPES.type5
+    vestingInfo: VESTING_TYPES.type5,
+    label: 'Company Reserve'
   },
   teamAndAdvisors: {
     percentage: parseEther(`${POOLS_SUPPLY.teamAndAdvisors / ALLOCATION_TOTAL_SUPPLY}`),
-    vestingInfo: VESTING_TYPES.type4
+    vestingInfo: VESTING_TYPES.type4,
+    label: 'Team & Advisors'
   },
 }
 
@@ -149,5 +167,27 @@ export const NETWORKS: NetworksInfo = {
       name: 'AVAX',
       symbol: 'AVAX'
     }
-  }
+  },
+  mumbai: {
+    name: 'Polygon Mumbai',
+    blockExplorerUrl: 'https://mumbai.polygonscan.com',
+    rpcUrl: 'https://rpc-mumbai.maticvigil.com',
+    chainId: 80001,
+    nativeCurrency: {
+      decimals: 18,
+      name: 'MATIC',
+      symbol: 'MATIC'
+    }
+  },
+  hardhat: {
+    name: 'harhat',
+    blockExplorerUrl: '',
+    rpcUrl: 'http://127.0.0.1:8545',
+    chainId: 0,
+    nativeCurrency: {
+      decimals: 18,
+      name: 'ETH',
+      symbol: 'ETH'
+    }
+  },
 }

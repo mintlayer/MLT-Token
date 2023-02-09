@@ -16,10 +16,13 @@ export function deepCopy<T>(obj: T): T {
   }
 
   if (obj instanceof Object) {
-    // @ts-ignore
+    let init = {} as T;
+
     return Object.keys(obj).reduce((newObj, key) => {
       newObj[key] = deepCopy(obj[key]);
       return newObj;
-    }, {});
+    }, init);
   }
+
+  return obj;
 };

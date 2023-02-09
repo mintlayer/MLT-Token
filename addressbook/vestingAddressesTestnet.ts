@@ -5006,45 +5006,90 @@ const launch: VestingUsers[] = [
 ];
 
 const treasury: VestingUsers[] = [
-  {
-    address: "0xC076fDba9aC2c1144f52ee2aC9BD4f3317F79182",
+  { // Fatima - preSeed
+    address: "0x8504bc7f590DB73b423BdC866102a8e77722d41e",
     allocationsType: "preSeed",
-    amount: parseEther('325000'),
+    amount: parseEther('50000'),
   },
-  {
-    address: "0xe2A234EfF72C66B5Fa77D22449DaDcDC5f6558a9",
-    allocationsType: "seed",
-    amount: parseEther('40000000'),
+  { // Fatima - preSeed
+    address: "0x929289F5D75D03c0716bdC520282d616FF796FdE",
+    allocationsType: "preSeed",
+    amount: parseEther('50000'),
   },
-  {
+  { // Fatima - Seed
     address: "0xBc67849Ae7A1dc56b457eC4FAA504023f6cBDDb5",
     allocationsType: "seed",
     amount: parseEther('10000000'),
   },
-  {
+  { // Fatima - longVesting
+    address: "0xF904533b0e43cF092d4FF33faD2c7cB5EA64a692",
+    allocationsType: "longVesting",
+    amount: parseEther('1000000'),
+  },
+  { // Fatima - shortVesting
+    address: "0x1a6FbD3a97c0B736E0d4D54c7a337883D0E73C8e",
+    allocationsType: "shortVesting",
+    amount: parseEther('2799500'),
+  },
+  { // Fatima - marketing
+    address: "0x71adb24619B83bE30cf2f3D2bcb9269e1706EC6C",
+    allocationsType: "marketing",
+    amount: parseEther('500000'),
+  },
+  { // Fatima - development
+    address: "0x4DdDa2300f0DaCE473A7A988C75C2EfbFA7faB42",
+    allocationsType: "development",
+    amount: parseEther('1000000'),
+  },
+  { // Fatima - community
+    address: "0x99717EB70c74C85518838C421B2123e4592b9554",
+    allocationsType: "community",
+    amount: parseEther('9987000'),
+  },
+  { // Fatima - teamAndAdvisors
+    address: "0x75ba58d8CB7E506B72DBaf03980304c87695ebbA",
+    allocationsType: "teamAndAdvisors",
+    amount: parseEther('1000000'),
+  },
+  { // Fatima - companyReserve
+    address: "0x371BADd68F0A4B48119C71A98E93f91D460E5458",
+    allocationsType: "companyReserve",
+    amount: parseEther('1000000'),
+  },
+  { // Fabio
+    address: "0xC076fDba9aC2c1144f52ee2aC9BD4f3317F79182",
+    allocationsType: "preSeed",
+    amount: parseEther('325000'),
+  },
+  { // Fabio
+    address: "0xe2A234EfF72C66B5Fa77D22449DaDcDC5f6558a9",
+    allocationsType: "seed",
+    amount: parseEther('40000000'),
+  },
+  { // Fabio
     address: "0x7179fDEf7bcC5a81ca87809068E56235b2A98225",
     allocationsType: "longVesting",
     amount: parseEther('25993500'),
   },
-  {
+  { // Fabio
     address: "0x974F4D27550df2a89f682aB9A3e64920293a300d",
     allocationsType: "shortVesting",
-    amount: parseEther('12799500'),
+    amount: parseEther('10000000'),
   },
-  {
+  { // Fabio
     address: "0xd51c8fccbd3CdC5484baaac3B7cEaF8b2b364a24",
     allocationsType: "marketing",
-    amount: parseEther('48000000'),
+    amount: parseEther('47000000'),
   },
-  {
+  { // Fabio
     address: "0x4a5F795eD0905019c947C8BcC3d026498DE0B849",
     allocationsType: "development",
-    amount: parseEther('40000000'),
+    amount: parseEther('38000000'),
   },
-  {
+  { // Fabio
     address: "0x95CB237CEbcDeEfF8862727c874B2B4d7225bE2A",
     allocationsType: "community",
-    amount: parseEther('20000000'),
+    amount: parseEther('10000000'),
   },
   {
     address: "0x5ae5851Bb09e99e7c19e12986142B5A8053bdC8e",
@@ -5054,7 +5099,7 @@ const treasury: VestingUsers[] = [
   {
     address: "0x2392EEEfcfcC42118cB11ACE7e6dB3cAA6Dc4E0C",
     allocationsType: "companyReserve",
-    amount: parseEther('72294958'),
+    amount: parseEther('71294958'),
   },
 ];
 
@@ -5090,7 +5135,7 @@ export const VESTING_USERS_TESTNET: VestingUsers[] = [
   { // Javier Cabrera
     address: "0x859Cf27D2d3eCFd17Bd53dB05Da3CdDBe9204277",
     allocationsType: "preSeed",
-    amount: parseEther('325000'),
+    amount: parseEther('225000'),
   },
   // END - PRE SEED
   // ########################################
@@ -5100,10 +5145,15 @@ export const VESTING_USERS_TESTNET: VestingUsers[] = [
     allocationsType: "seed",
     amount: parseEther('600000'),
   },
+  { // SAFTHolder
+    address: "0x2Cd57d81cf50ec83Fabb98bb7Fa3115154EdB960",
+    allocationsType: "seed",
+    amount: parseEther('2000000'),
+  },
   { // Javier Cabrera
     address: "0x7F354CeF07267d53aCE00682ddC1D4Dfb06F98Ad",
     allocationsType: "seed",
-    amount: parseEther('4000000'),
+    amount: parseEther('2000000'),
   },
   // END - SEED
   // ########################################
@@ -5116,7 +5166,12 @@ export const VESTING_USERS_TESTNET: VestingUsers[] = [
   { // Javier Cabrera
     address: "0x75B7AA6E0165977E7C41ead70d2919481bAABe36",
     allocationsType: "teamAndAdvisors",
-    amount: parseEther('24999500'),
+    amount: parseEther('13999500'),
+  },
+  { // Fatima
+    address: "0x97B29Bab43aE4F2Dd89e0eaA83c8eBE971874e5c",
+    allocationsType: "teamAndAdvisors",
+    amount: parseEther('10000000'),
   },
   // END - TEAM ADVISORS
   // ########################################
@@ -5134,12 +5189,27 @@ export const VESTING_USERS_TESTNET: VestingUsers[] = [
   // END - SHORT VESTING
   // ########################################
   // MARKETING
+  { // Fatima
+    address: "0x0916eeadbFF49709da67431510B5444F072B47Ff",
+    allocationsType: "marketing",
+    amount: parseEther('500000'),
+  },
   // END - MARKETING
   // ########################################
   // DEVELOPMENT
+  { // Fatima
+    address: "0x0916eeadbFF49709da67431510B5444F072B47Ff",
+    allocationsType: "development",
+    amount: parseEther('1000000'),
+  },
   // END - DEVELOPMENT
   // ########################################
   // COMMUNITY
+  { // SAFTHolder
+    address: "0x2Cd57d81cf50ec83Fabb98bb7Fa3115154EdB960",
+    allocationsType: "community",
+    amount: parseEther('13000'),
+  },
   // END - COMMUNITY
   // ########################################
   // COMPANY RESERVE
@@ -5152,14 +5222,14 @@ export const VESTING_USERS_TESTNET: VestingUsers[] = [
   // ########################################
   // LONG VESTING
   { // SAFTHolder
-    address: "0x2Cd57d81cf50ec83Fabb98bb7Fa3115154EdB960",
+    address: "0x89B88BDce77F6d2Ce97D58548e8F26546EfC50D3",
     allocationsType: "longVesting",
-    amount: parseEther('13000'),
+    amount: parseEther('10013000'),
   },
   { // Javier Cabrera
     address: "0xEb0C6134495385Ca618aB2e881c4A4c327A2C6FE",
     allocationsType: "longVesting",
-    amount: parseEther('25993500'),
+    amount: parseEther('14993500'),
   },
   // END - LONG VESTING
   // ########################################

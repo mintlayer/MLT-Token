@@ -1,5 +1,6 @@
 /* plugins */
 import 'hardhat-deploy';
+import 'solidity-coverage';
 import '@typechain/hardhat';
 import 'hardhat-gas-reporter';
 import '@nomiclabs/hardhat-waffle';
@@ -13,15 +14,16 @@ import type { HardhatUserConfig } from 'hardhat/types';
 import {
   REPORT_GAS,
   TYPECHAIN_ON,
-  IS_PRODUCTION,
-  INFURA_API_KEY,
+  IS_PRODUCTIVE,
   WALLET_PRIVKEY,
-  ALCHEMY_API_KEY,
   ETHERSCAN_API_KEY,
   COINMARKETCAP_API,
   ETHERSCAN_FTM_API_KEY,
   ETHERSCAN_FUJI_API_KEY,
+  MUMBAI_ALCHEMY_API_KEY,
   TREASURER_WALLET_PRIVKEY,
+  ETHERSCAN_MUMBAI_API_KEY,
+  ETH_MAINNET_ALCHEMY_API_KEY,
 } from './constants';
 
 /* tasks */
@@ -30,10 +32,6 @@ if(!TYPECHAIN_ON) {
   require('./tasks/merketree');
 }
 
-
-function getProviderInfuraURL(network: string) {
-  return `https://${network}.infura.io/v3/${INFURA_API_KEY}`
-}
 
 // Config
 const config: HardhatUserConfig = {
@@ -118,19 +116,8 @@ const config: HardhatUserConfig = {
         },
       ],
       forking: {
-        url: `https://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_API_KEY}`,
+        url: `https://eth-mainnet.alchemyapi.io/v2/${ETH_MAINNET_ALCHEMY_API_KEY}`,
       }
-    },
-    ropsten: {
-      tags: ['staging'],
-      loggingEnabled: false,
-      accounts: [ WALLET_PRIVKEY, TREASURER_WALLET_PRIVKEY ],
-      url: getProviderInfuraURL('ropsten'),
-    },
-    rinkeby: {
-      tags: ['staging'],
-      accounts: [ WALLET_PRIVKEY, TREASURER_WALLET_PRIVKEY ],
-      url: getProviderInfuraURL('rinkeby'),
     },
     fuji: {
       chainId: 43113,
@@ -149,7 +136,7 @@ const config: HardhatUserConfig = {
     mumbai: {
       chainId: 80001,
       tags: ['staging'],
-      url: 'https://rpc-mumbai.maticvigil.com',
+      url: `https://polygon-mumbai.g.alchemy.com/v2/${MUMBAI_ALCHEMY_API_KEY}`,
       accounts: [ WALLET_PRIVKEY, TREASURER_WALLET_PRIVKEY ],
     }
   },
@@ -161,6 +148,7 @@ const config: HardhatUserConfig = {
     apiKey: {
       ftmTestnet: ETHERSCAN_FTM_API_KEY,
       avalancheFujiTestnet: ETHERSCAN_FUJI_API_KEY,
+      polygonMumbai: ETHERSCAN_MUMBAI_API_KEY,
     }
   },
   gasReporter: {

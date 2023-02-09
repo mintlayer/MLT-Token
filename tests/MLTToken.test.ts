@@ -1,3 +1,4 @@
+import { BigNumber } from 'ethers';
 import { randomHex } from 'web3-utils';
 import { parseEther } from 'ethers/lib/utils';
 import { VestingTree } from '@mintlayer/vesting-tree';
@@ -5,7 +6,7 @@ import { deployments, ethers, getNamedAccounts } from 'hardhat';
 
 import { setupUser } from '../helpers/ethers';
 import { assert, expect } from './utils/chaiSetup';
-import { VESTING_USERS } from '../addressbook/vestingAddresses';
+import { TREASURERS, VESTING_USERS } from '../addressbook/vestingAddresses';
 import {
   GAS_LIMIT,
   BATCH_SIZE,
@@ -17,7 +18,12 @@ import {
 /* types */
 import type { Accounts } from '../typescript/hardhat';
 import type { MLTToken as IMLTToken } from 'build/types';
-import type { VestingUsers } from '@mintlayer/vesting-tree/dist/types';
+import type {
+  Allocation,
+  VestingUsers,
+  PartialRecord,
+  AllocationsType,
+} from '@mintlayer/vesting-tree/dist/types';
 
 let tree: VestingTree | null = null;
 
@@ -25,11 +31,14 @@ async function setup() {
   await deployments.fixture(['MLTToken']);
 
   if(!tree) {
+    if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid');
+
     tree = new VestingTree({
       users: VESTING_USERS,
       allocations: ALLOCATIONS,
-      vestingStartTimestamp: VESTING_START_TIMESTAMP,
+      vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
       balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
+      treasurers: TREASURERS,
     });
   }
 
@@ -56,60 +65,23 @@ describe('MLTToken contract', () => {
   it('Should fail if the merkle proof is invalid', async () => {
     const { contracts: { MLTToken } } = await setup();
 
+    if(!tree) throw new Error('tree invalid!');
     const root = tree.getHexRoot();
 
     await expect(MLTToken.releaseVested(ethers.constants.AddressZero, 0, 0, root, []))
     .to.revertedWith('Invalid merkle proof');
 
     await expect(MLTToken.releaseVested(ethers.constants.AddressZero, 0, 0, randomHex(32), []))
-    .to.revertedWith('Is not valid root');
-  });
-
-  it('Should fail if it is not yet the release date', async () => {
-    const { contracts: { MLTToken } } = await setup();
-
-    const root = tree.getHexRoot();
-    const VESTING_TIMESTAMP = await MLTToken.startTimestampByRootHash(root);
-
-    const blockNumber = await ethers.provider.getBlockNumber();
-    const block = await ethers.provider.getBlock(blockNumber);
-    const blockTimestamp = block.timestamp;
-
-    const vestingSchedule = tree.vestingSchedules.find((item) => {
-      return blockTimestamp < VESTING_TIMESTAMP.add(item.vestingCliff).toNumber();
-    });
-
-    if(vestingSchedule) {
-      await expect(
-        MLTToken.releaseVested(
-          vestingSchedule.address,
-          vestingSchedule.amount,
-          vestingSchedule.vestingCliff,
-          root,
-          tree.getHexProof(tree.hash(vestingSchedule))
-        )
-      )
-      .to.revertedWith("The release date has not yet arrived");
-
-      await expect(
-        MLTToken.releaseVested(
-          vestingSchedule.address,
-          vestingSchedule.amount,
-          vestingSchedule.vestingCliff,
-          randomHex(32),
-          tree.getHexProof(tree.hash(vestingSchedule))
-        )
-      )
-      .to.revertedWith("Is not valid root");
-    }
+    .to.revertedWith('Root no valid');
   });
 
   it('Successfully claim vesting. It will fail if you try to claim multiple times', async () => {
       const { contracts: { MLTToken } } = await setup();
 
+      if(!tree) throw new Error('tree invalid!');
       const root = tree.getHexRoot();
 
-      const VESTING_TIMESTAMP = await MLTToken.startTimestampByRootHash(root);
+      const VESTING_TIMESTAMP = await MLTToken.VESTING_START_TIMESTAMP();
 
       const blockNumber = await ethers.provider.getBlockNumber();
       const block = await ethers.provider.getBlock(blockNumber);
@@ -126,46 +98,36 @@ describe('MLTToken contract', () => {
       const userBalBefore = await MLTToken.balanceOf(vestingSchedule.address);
       const proof = tree.getHexProof(tree.hash(vestingSchedule));
 
-      await expect(
-        MLTToken.releaseVested(
-          vestingSchedule.address,
-          vestingSchedule.amount,
-          vestingSchedule.vestingCliff,
-          randomHex(32),
-          proof
-        )
-      ).to.revertedWith("Is not valid root");
+      const { address, amount, vestingCliff } = vestingSchedule;
 
-      const releaseVestedTx = MLTToken.releaseVested(
-        vestingSchedule.address,
-        vestingSchedule.amount,
-        vestingSchedule.vestingCliff,
-        root,
-        proof
-      );
+      await expect(
+        MLTToken.releaseVested(address, amount, vestingCliff, root, [])
+      ).to.revertedWith("Invalid merkle proof");
+
+      await expect(
+        MLTToken.releaseVested(address, amount, vestingCliff, randomHex(32), [])
+      ).to.revertedWith("Root no valid");
+
+      const releaseVestedTx = MLTToken.releaseVested(address, amount, vestingCliff, root, proof);
 
       await expect(releaseVestedTx).to.be.emit(MLTToken, 'VestedTokenGrant');
 
-      const userBalAfter = await MLTToken.balanceOf(vestingSchedule.address);
+      const userBalAfter = await MLTToken.balanceOf(address);
 
-      expect(userBalAfter).to.be.equal(userBalBefore.add(vestingSchedule.amount));
+      expect(userBalAfter).to.be.equal(userBalBefore.add(amount));
 
-      await expect(MLTToken.releaseVested(
-        vestingSchedule.address,
-        vestingSchedule.amount,
-        vestingSchedule.vestingCliff,
-        root,
-        proof
-      ))
-      .to.revertedWith('Tokens already claimed');
+      await expect(
+        MLTToken.releaseVested(address, amount, vestingCliff, root, proof)
+      ).to.revertedWith('Tokens already claimed');
   });
 
   it('All vesting should be released', async () => {
     const { contracts: { MLTToken } } = await setup();
 
+    if(!tree) throw new Error('tree invalid!');
     const root = tree.getHexRoot();
 
-    const VESTING_TIMESTAMP = await MLTToken.startTimestampByRootHash(root);
+    const VESTING_TIMESTAMP = await MLTToken.VESTING_START_TIMESTAMP();
 
     let currentTimestamp = VESTING_TIMESTAMP.toNumber();
 
@@ -186,13 +148,15 @@ describe('MLTToken contract', () => {
       await ethers.provider.send('evm_mine', []);
     }
 
-    const vestingSchedulePromises: Promise<any>[] = [];
+    let treasuryBalance = BigNumber.from(0);
+    const vestingSchedulesPromises: Promise<any>[] = [];
 
     for(const key in tree.groupedByUsers) {
-      const user = tree.groupedByUsers[key];
+      const vestingSchedules = tree.groupedByUsers[key];
 
-      vestingSchedulePromises.push(new Promise(async (resolve) => {
-        for(const vestingSchedule of user) {
+      vestingSchedulesPromises.push(new Promise(async (resolve) => {
+        if(!tree) throw new Error('tree invalid!');
+        for(const vestingSchedule of vestingSchedules) {
           const { address, amount, vestingCliff } = vestingSchedule;
 
           const userBalBefore = await MLTToken.balanceOf(vestingSchedule.address);
@@ -201,48 +165,75 @@ describe('MLTToken contract', () => {
 
           await expect(
             MLTToken.releaseVested(address, amount, vestingCliff, randomHex(32), proof)
-          ).to.revertedWith("Is not valid root");
-
-          await MLTToken.releaseVested(address, amount, vestingCliff, root, proof);
-
-          const userBalAfter = await MLTToken.balanceOf(vestingSchedule.address);
-
-          expect(userBalAfter).to.be.equal(userBalBefore.add(vestingSchedule.amount));
+          ).to.revertedWith("Root no valid");
 
           await expect(
-            MLTToken.releaseVested(address, amount, vestingCliff, root, proof)
-          ).to.revertedWith('Tokens already claimed');
+            MLTToken.releaseVested(address, amount, vestingCliff, root, [])
+          ).to.revertedWith("Invalid merkle proof");
+
+          const isTreasurer = await MLTToken.isTreasurer(address);
+
+          if(isTreasurer) {
+            treasuryBalance = treasuryBalance.add(amount);
+            await expect(
+              MLTToken.releaseVested(address, amount, vestingCliff, root, proof)
+            ).to.be.revertedWith("Treasury addresses cannot claim tokens")
+          }
+
+          if(!isTreasurer) {
+            await MLTToken.releaseVested(address, amount, vestingCliff, root, proof);
+
+            const userBalAfter = await MLTToken.balanceOf(vestingSchedule.address);
+
+            expect(userBalAfter).to.be.equal(userBalBefore.add(vestingSchedule.amount));
+
+            await expect(
+              MLTToken.releaseVested(address, amount, vestingCliff, root, proof)
+            ).to.revertedWith('Tokens already claimed');
+          }
         }
 
         resolve(true);
       }))
     }
 
-    await Promise.all(vestingSchedulePromises);
+    await Promise.all(vestingSchedulesPromises);
 
     const allocationBalance = await MLTToken.balanceByRootHash(root);
 
-    expect(allocationBalance).to.be.equal(0);
+    expect(allocationBalance.sub(treasuryBalance)).to.be.equal(0);
   });
 
   it('Batches release', async () => {
     const { contracts: { MLTToken } } = await setup();
 
-    const batches: IMLTToken.UserStruct[][] = [];
+    const batches: IMLTToken.VestingDataStruct[][] = [];
 
+    if(!tree) throw new Error('tree invalid!');
     const root = tree.getHexRoot();
 
-    const VESTING_TIMESTAMP = await MLTToken.startTimestampByRootHash(root);
+    const VESTING_TIMESTAMP = await MLTToken.VESTING_START_TIMESTAMP();
 
     const nextBlockTimestamp = VESTING_TIMESTAMP.mul(2).toNumber();
     await ethers.provider.send('evm_setNextBlockTimestamp', [ nextBlockTimestamp ]);
     await ethers.provider.send('evm_mine', []);
 
-    for(let i = 0; i < tree.vestingSchedules.length; i += BATCH_SIZE) {
-      const users: IMLTToken.UserStruct[] = [];
+    let treasuryBalance = BigNumber.from(0);
 
-      tree.vestingSchedules.slice(i, i + BATCH_SIZE).forEach((vestingSchedule) => {
+    for(let i = 0; i < tree.vestingSchedules.length; i += BATCH_SIZE) {
+      const users: IMLTToken.VestingDataStruct[] = [];
+
+      const vestingSchedulesChunk = tree.vestingSchedules.slice(i, i + BATCH_SIZE);
+
+      for(const vestingSchedule of vestingSchedulesChunk) {
         const { address, amount, vestingCliff } = vestingSchedule;
+
+        const isTreasure = await MLTToken.isTreasurer(address);
+
+        if(isTreasure) {
+          treasuryBalance = treasuryBalance.add(amount);
+          continue;
+        }
 
         users.push({
           beneficiary: address,
@@ -250,7 +241,7 @@ describe('MLTToken contract', () => {
           cliff: vestingCliff,
           proof: tree.getHexProof(tree.hash(vestingSchedule))
         })
-      })
+      }
 
       batches.push(users);
     }
@@ -263,72 +254,10 @@ describe('MLTToken contract', () => {
 
     const allocationBalance = await MLTToken.balanceByRootHash(root);
 
-    expect(allocationBalance).to.be.equal(0);
+    expect(allocationBalance.sub(treasuryBalance)).to.be.equal(0);
   })
 
-  it('After TGE', async () => {
-    const { contracts, accounts } = await setup();
-    const { treasurer1 } = accounts;
-
-    const contractsConnect = await setupUser(treasurer1, contracts);
-    const MLTToken = contractsConnect.MLTToken;
-
-    const root = tree.getHexRoot();
-    const VESTING_TIMESTAMP = await MLTToken.startTimestampByRootHash(root);
-
-    let currentTimestamp = VESTING_TIMESTAMP.toNumber();
-
-    // You must be a user who is a group treasurer to test creating a new merkle tree
-    const user = tree.groupedByUsers[treasurer1];
-
-    // Find the latest release date to update the timestamp of the last block
-    user.forEach((vestingSchedule) => {
-      const timestampTMP = VESTING_TIMESTAMP.add(vestingSchedule.vestingCliff).toNumber();
-
-      if(currentTimestamp <= timestampTMP) {
-        currentTimestamp = timestampTMP;
-      }
-    })
-
-    const blockNumber = await ethers.provider.getBlockNumber();
-    const block = await ethers.provider.getBlock(blockNumber);
-    const blockTimestamp = block.timestamp;
-
-    if(blockTimestamp <= currentTimestamp) {
-      await ethers.provider.send('evm_setNextBlockTimestamp', [currentTimestamp]);
-      await ethers.provider.send('evm_mine', []);
-    }
-
-    await new Promise(async (resolve) => {
-      for(const vestingSchedule of user) {
-        const { address, amount, vestingCliff } = vestingSchedule;
-
-        const userBalBefore = await MLTToken.balanceOf(vestingSchedule.address);
-
-        const proof = tree.getHexProof(tree.hash(vestingSchedule));
-
-        await expect(
-          MLTToken.releaseVested(address, amount, vestingCliff, randomHex(32), proof)
-        ).to.revertedWith("Is not valid root");
-
-        await MLTToken.releaseVested(address, amount, vestingCliff, root, proof);
-
-        const userBalAfter = await MLTToken.balanceOf(vestingSchedule.address);
-
-        expect(userBalAfter).to.be.equal(userBalBefore.add(vestingSchedule.amount));
-
-        await expect(
-          MLTToken.releaseVested(address, amount, vestingCliff, root, proof)
-        ).to.revertedWith('Tokens already claimed');
-      }
-
-      resolve(true);
-    })
-
-    const userBal = await MLTToken.balanceOf(treasurer1);
-
-    expect(userBal).to.be.gt(0);
-
+  describe('After TGE', () => {
     const usersTGE: VestingUsers[] = [
       {
         address: "0xBc67849Ae7A1dc56b457eC4FAA504023f6cBDDb5",
@@ -380,78 +309,497 @@ describe('MLTToken contract', () => {
         allocationsType: "seed",
         weight: parseEther('0.1'),
       },
-    ]
+    ];
 
-    const allocations = {
+    const dummyRoot = randomHex(32);
+
+    /**
+     * IMPORTANT!
+     * The treasurerData1 is used in index 1 because it is the address that the private key is
+     * set to in the .env file. If you are cloning this repository and you don't have the .env
+     * file with the same address, you can set your own address and add the private key to the
+     * TREASURER_WALLET_PRIVKEY variable in the .env file.
+    */
+    const treasurerData1 = TREASURERS[2];
+    const { vestingType } = treasurerData1;
+    const { unlocking, months, monthly, cliff, label } = vestingType;
+
+    const allocation1_: IMLTToken.AllocationStruct = {
+      unlocking: parseEther(`${unlocking}`),
+      months: months.map(month => parseEther(`${month}`)),
+      monthly: monthly.map(month => parseEther(`${month}`)),
+      cliff: parseEther(`${cliff}`),
+    }
+
+    const allocations: PartialRecord<AllocationsType, Allocation> = {
       seed: {
         percentage: parseEther('1'),
         vestingInfo: {
-          unlocking: 0.1,
-          monthly: [0.06],
-          months: [15],
-          cliff: 0,
-          label: '1'
+          unlocking,
+          monthly,
+          months,
+          cliff,
+          label,
         }
       }
     };
 
-    // Validate that the balance 'require' are correctly evaluated
-    {
-      const balance = userBal.mul(2);
+    it('Should fail if initial root is not valid', async () => {
+      const { contracts, accounts } = await setup();
+      const { treasurer1 } = accounts;
+
+      const contractsConnect = await setupUser(treasurer1, contracts);
+      const MLTToken = contractsConnect.MLTToken;
+
+      await expect(
+        MLTToken.addRoot(dummyRoot, dummyRoot, 0, '', allocation1_, [], [], [], [], [])
+      ).to.revertedWith('Initial root not valid');
+    });
+
+    it('Should fail if caller is not a treasurer', async () => {
+      const { contracts: { MLTToken } } = await setup();
+
+      if(!tree) throw new Error('tree invalid!');
+      const root = tree.getHexRoot();
+
+      await expect(
+        MLTToken.addRoot(root, dummyRoot, 0, '', allocation1_, [], [], [], [], [])
+      ).to.revertedWith('Caller is not a treasurer');
+    });
+
+    it('Should fail if the quantity of the allocation of the new Merkle tree is invalid', async () => {
+      const { contracts, accounts } = await setup();
+      const { treasurer1 } = accounts;
+
+      if(!tree) throw new Error('tree invalid!');
+      if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid!');
+      const root = tree.getHexRoot();
+
+      const contractsConnect = await setupUser(treasurer1, contracts);
+      const MLTToken = contractsConnect.MLTToken;
+
+      const balance = await MLTToken.totalSupply();
       const treeAfterTGE = new VestingTree({
         balance,
         users: usersTGE,
         allocations,
-        vestingStartTimestamp: VESTING_START_TIMESTAMP,
+        vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
       });
 
       const rootTreeAfterTGE = treeAfterTGE.getHexRoot();
-      const proofRoot = treeAfterTGE.getHexProof(treeAfterTGE.balancehash(balance));
 
       await expect(
-        MLTToken.addRoot(rootTreeAfterTGE, 0, VESTING_START_TIMESTAMP, proofRoot)
-      ).to.revertedWith("The supply sent does not match that of the merketree");
-
-      await expect(
-        MLTToken.addRoot(rootTreeAfterTGE, balance, VESTING_START_TIMESTAMP, proofRoot)
-      ).to.revertedWith("Amount exceeds balance");
-    }
-
-    const treeAfterTGE = new VestingTree({
-      balance: userBal,
-      users: usersTGE,
-      allocations,
-      vestingStartTimestamp: VESTING_START_TIMESTAMP,
+        MLTToken.addRoot(root, rootTreeAfterTGE, balance, '', allocation1_, [], [], [], [], [])
+      ).to.revertedWith('The quantity of the allocation of the new Merkle tree is invalid');
     });
-    const rootTreeAfterTGE = treeAfterTGE.getHexRoot();
-    const proofRoot = treeAfterTGE.getHexProof(treeAfterTGE.balancehash(userBal));
 
-    await MLTToken.addRoot(rootTreeAfterTGE, userBal, VESTING_START_TIMESTAMP, proofRoot);
+    it('Should fail if the allocation type of the new Merkle tree is invalid', async () => {
+      const { contracts, accounts } = await setup();
+      const { treasurer1 } = accounts;
 
-    await expect(
-      MLTToken.addRoot(rootTreeAfterTGE, userBal, VESTING_START_TIMESTAMP, proofRoot)
-    ).to.revertedWith("Root hash already exists");
+      if(!tree) throw new Error('tree invalid!');
+      if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid!');
+      const root = tree.getHexRoot();
 
+      const contractsConnect = await setupUser(treasurer1, contracts);
+      const MLTToken = contractsConnect.MLTToken;
 
-    const { AddressZero } = ethers.constants;
+      const balance = await MLTToken.totalSupply();
+      const treeAfterTGE = new VestingTree({
+        balance,
+        users: usersTGE,
+        allocations,
+        vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
+        treasurers: [treasurerData1]
+      });
 
-    // Should fail if the merkle proof is invalid
-    await expect(MLTToken.releaseVested(AddressZero, 0, 0, rootTreeAfterTGE, []))
-    .to.revertedWith('Invalid merkle proof');
+      const rootTreeAfterTGE = treeAfterTGE.getHexRoot();
 
-    // Successfully claim vesting. It will fail if you try to claim multiple times
-    {
-      const timestampTreeAfterTGE = await MLTToken.startTimestampByRootHash(rootTreeAfterTGE);
+      const allocationQuantityProof_ = treeAfterTGE.getHexProof(
+        treeAfterTGE.allocationQuantityHash()
+      );
+
+      await expect(
+        MLTToken.addRoot(
+          root,
+          rootTreeAfterTGE,
+          0,
+          '',
+          allocation1_,
+          [],
+          [],
+          [],
+          allocationQuantityProof_,
+          []
+        )
+      ).to.revertedWith('Allocation type of the new Merkle tree is invalid');
+    });
+
+    it('Should fail if the supply sent does not match that of the merketree', async () => {
+      const { contracts, accounts } = await setup();
+      const { treasurer1 } = accounts;
+
+      if(!tree) throw new Error('tree invalid!');
+      if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid!');
+      const root = tree.getHexRoot();
+
+      const contractsConnect = await setupUser(treasurer1, contracts);
+      const MLTToken = contractsConnect.MLTToken;
+
+      const balance = await MLTToken.totalSupply();
+      const treeAfterTGE = new VestingTree({
+        balance,
+        users: usersTGE,
+        allocations,
+        vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
+        treasurers: [treasurerData1]
+      });
+
+      const rootTreeAfterTGE = treeAfterTGE.getHexRoot();
+
+      const initialAllocationProof_ = tree.getHexProof(tree.treasurerHash(treasurerData1));
+      const newAllocationProof_ = treeAfterTGE.getHexProof(
+        treeAfterTGE.treasurerHash(treasurerData1)
+      );
+
+      const allocationQuantityProof_ = treeAfterTGE.getHexProof(
+        treeAfterTGE.allocationQuantityHash()
+      );
+
+      await expect(
+        MLTToken.addRoot(
+          root,
+          rootTreeAfterTGE,
+          0,
+          '',
+          allocation1_,
+          [],
+          initialAllocationProof_,
+          newAllocationProof_,
+          allocationQuantityProof_,
+          []
+        )
+      ).to.revertedWith('The supply sent does not match that of the merketree');
+    });
+
+    it('should fail if you try to claim tokens from another user', async () => {
+      const { contracts, accounts } = await setup();
+      const { treasurer1 } = accounts;
+
+      if(!tree) throw new Error('tree invalid!');
+      if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid!');
+      const root = tree.getHexRoot();
+
+      const contractsConnect = await setupUser(treasurer1, contracts);
+      const MLTToken = contractsConnect.MLTToken;
+
+      const balance = parseEther('1000');
+      const treeAfterTGE = new VestingTree({
+        balance,
+        users: usersTGE,
+        allocations,
+        vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
+        treasurers: [treasurerData1]
+      });
+
+      const rootTreeAfterTGE = treeAfterTGE.getHexRoot();
+      const initialAllocationProof_ = tree.getHexProof(tree.treasurerHash(treasurerData1));
+      const newAllocationProof_ = treeAfterTGE.getHexProof(
+        treeAfterTGE.treasurerHash(treasurerData1)
+      );
+
+      const balanceProof_ = treeAfterTGE.getHexProof(treeAfterTGE.balancehash(balance));
+      const allocationQuantityProof_ = treeAfterTGE.getHexProof(
+        treeAfterTGE.allocationQuantityHash()
+      );
+
+      await expect(
+        MLTToken.addRoot(
+          root,
+          rootTreeAfterTGE,
+          balance,
+          '',
+          allocation1_,
+          balanceProof_,
+          initialAllocationProof_,
+          newAllocationProof_,
+          allocationQuantityProof_,
+          [{
+            beneficiary: randomHex(20),
+            amount: 0,
+            cliff: 0,
+            proof: []
+          }]
+        )
+      ).to.revertedWith('You cannot claim tokens from another user');
+    });
+
+    it('Should fail if the merkle proof is invalid', async () => {
+      const { contracts, accounts } = await setup();
+      const { treasurer1 } = accounts;
+
+      if(!tree) throw new Error('tree invalid!');
+      if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid!');
+      const root = tree.getHexRoot();
+
+      const contractsConnect = await setupUser(treasurer1, contracts);
+      const MLTToken = contractsConnect.MLTToken;
+
+      const balance = await MLTToken.totalSupply();
+      const treeAfterTGE = new VestingTree({
+        balance,
+        users: usersTGE,
+        allocations,
+        vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
+        treasurers: [treasurerData1]
+      });
+
+      const rootTreeAfterTGE = treeAfterTGE.getHexRoot();
+      const initialAllocationProof_ = tree.getHexProof(tree.treasurerHash(treasurerData1));
+      const newAllocationProof_ = treeAfterTGE.getHexProof(
+        treeAfterTGE.treasurerHash(treasurerData1)
+      );
+
+      const balanceProof_ = treeAfterTGE.getHexProof(treeAfterTGE.balancehash(balance));
+      const allocationQuantityProof_ = treeAfterTGE.getHexProof(
+        treeAfterTGE.allocationQuantityHash()
+      );
+
+      await expect(
+        MLTToken.addRoot(
+          root,
+          rootTreeAfterTGE,
+          balance,
+          '',
+          allocation1_,
+          balanceProof_,
+          initialAllocationProof_,
+          newAllocationProof_,
+          allocationQuantityProof_,
+          [{
+            beneficiary: treasurer1,
+            amount: balance,
+            cliff: 0,
+            proof: []
+          }]
+        )
+      ).to.revertedWith("Invalid merkle proof");
+    });
+
+    it('Should fail if amount is different from balance', async () => {
+      const { contracts, accounts } = await setup();
+      const { treasurer1 } = accounts;
+
+      if(!tree) throw new Error('tree invalid!');
+      if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid!');
+      const root = tree.getHexRoot();
+
+      const vestingSchedulesTreasurer = tree.groupedByUsers[treasurer1];
+
+      const contractsConnect = await setupUser(treasurer1, contracts);
+      const MLTToken = contractsConnect.MLTToken;
+
+      const balance = await MLTToken.totalSupply();
+      const treeAfterTGE = new VestingTree({
+        balance,
+        users: usersTGE,
+        allocations,
+        vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
+        treasurers: [treasurerData1]
+      });
+
+      const vestings = vestingSchedulesTreasurer.map((vestingSchedule) => {
+        const { address, amount, vestingCliff } = vestingSchedule;
+
+        if(!tree) throw new Error('tree invalid!');
+
+        return {
+          beneficiary: address,
+          amount,
+          cliff: vestingCliff,
+          proof: tree.getHexProof(tree.hash(vestingSchedule))
+        }
+      })
+
+      const rootTreeAfterTGE = treeAfterTGE.getHexRoot();
+      const initialAllocationProof_ = tree.getHexProof(tree.treasurerHash(treasurerData1));
+      const newAllocationProof_ = treeAfterTGE.getHexProof(
+        treeAfterTGE.treasurerHash(treasurerData1)
+      );
+
+      const balanceProof_ = treeAfterTGE.getHexProof(treeAfterTGE.balancehash(balance));
+      const allocationQuantityProof_ = treeAfterTGE.getHexProof(
+        treeAfterTGE.allocationQuantityHash()
+      );
+
+      await expect(
+        MLTToken.addRoot(
+          root,
+          rootTreeAfterTGE,
+          balance,
+          '',
+          allocation1_,
+          balanceProof_,
+          initialAllocationProof_,
+          newAllocationProof_,
+          allocationQuantityProof_,
+          vestings
+        )
+      ).to.revertedWith("Amount is different from balance");
+    });
+
+    it('Should failf if root hash already exists', async () => {
+      const { contracts, accounts } = await setup();
+      const { treasurer1 } = accounts;
+
+      if(!tree) throw new Error('tree invalid!');
+      if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid!');
+
+      const root = tree.getHexRoot();
+
+      const vestingSchedulesTreasurer = tree.groupedByUsers[treasurer1];
+
+      const contractsConnect = await setupUser(treasurer1, contracts);
+      const MLTToken = contractsConnect.MLTToken;
+
+      let balance = BigNumber.from(0);
+
+      const vestingSchedules = vestingSchedulesTreasurer.map((vestingSchedule) => {
+        const { address, amount, vestingCliff } = vestingSchedule;
+
+        balance = balance.add(amount);
+
+        if(!tree) throw new Error('tree invalid!');
+
+        return {
+          beneficiary: address,
+          amount,
+          cliff: vestingCliff,
+          proof: tree.getHexProof(tree.hash(vestingSchedule))
+        }
+      })
+
+      const treeAfterTGE = new VestingTree({
+        balance,
+        users: usersTGE,
+        allocations,
+        vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
+        treasurers: [treasurerData1]
+      });
+
+      const rootTreeAfterTGE = treeAfterTGE.getHexRoot();
+      const initialAllocationProof_ = tree.getHexProof(tree.treasurerHash(treasurerData1));
+      const newAllocationProof_ = treeAfterTGE.getHexProof(
+        treeAfterTGE.treasurerHash(treasurerData1)
+      );
+
+      const balanceProof_ = treeAfterTGE.getHexProof(treeAfterTGE.balancehash(balance));
+      const allocationQuantityProof_ = treeAfterTGE.getHexProof(
+        treeAfterTGE.allocationQuantityHash()
+      );
+
+      await expect(
+        MLTToken.addRoot(
+          root,
+          rootTreeAfterTGE,
+          balance,
+          '',
+          allocation1_,
+          balanceProof_,
+          initialAllocationProof_,
+          newAllocationProof_,
+          allocationQuantityProof_,
+          vestingSchedules
+        )
+      ).to.be.emit(MLTToken, 'AddedRoot');
+
+      await expect(
+        MLTToken.addRoot(
+          root,
+          rootTreeAfterTGE,
+          balance,
+          '',
+          allocation1_,
+          balanceProof_,
+          initialAllocationProof_,
+          newAllocationProof_,
+          allocationQuantityProof_,
+          vestingSchedules
+        )
+      ).to.be.revertedWith('Root hash already exists');
+    })
+
+    it('Successfully claim vesting. Should fail if you try to claim multiple times', async () => {
+      const { contracts, accounts } = await setup();
+      const { treasurer1 } = accounts;
+
+      const contractsConnect = await setupUser(treasurer1, contracts);
+      const MLTToken = contractsConnect.MLTToken;
+
+      let balance = BigNumber.from(0);
+
+      if(!tree) throw new Error('tree invalid!');
+      if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid!');
+
+      const vestingSchedulesTreasurer = tree.groupedByUsers[treasurer1];
+      const vestingSchedules = vestingSchedulesTreasurer.map((vestingSchedule) => {
+        const { address, amount, vestingCliff } = vestingSchedule;
+
+        balance = balance.add(amount);
+
+        if(!tree) throw new Error('tree invalid!');
+
+        return {
+          beneficiary: address,
+          amount,
+          cliff: vestingCliff,
+          proof: tree.getHexProof(tree.hash(vestingSchedule))
+        }
+      })
+
+      const treeAfterTGE = new VestingTree({
+        balance,
+        users: usersTGE,
+        allocations,
+        vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
+        treasurers: [treasurerData1]
+      });
+
+      const root = tree.getHexRoot();
+      const rootAfterTGE = treeAfterTGE.getHexRoot();
+
+      const initialAllocationProof_ = tree.getHexProof(tree.treasurerHash(treasurerData1));
+      const newAllocationProof_ = treeAfterTGE.getHexProof(
+        treeAfterTGE.treasurerHash(treasurerData1)
+      );
+
+      const balanceProof_ = treeAfterTGE.getHexProof(treeAfterTGE.balancehash(balance));
+      const allocationQuantityProof_ = treeAfterTGE.getHexProof(
+        treeAfterTGE.allocationQuantityHash()
+      );
+
+      await expect(
+        MLTToken.addRoot(
+          root,
+          rootAfterTGE,
+          balance,
+          '',
+          allocation1_,
+          balanceProof_,
+          initialAllocationProof_,
+          newAllocationProof_,
+          allocationQuantityProof_,
+          vestingSchedules
+        )
+      ).to.be.emit(MLTToken, 'AddedRoot');
+
+      const timestampTreeAfterTGE = await MLTToken.VESTING_START_TIMESTAMP();
 
       const blockNumber = await ethers.provider.getBlockNumber();
       const block = await ethers.provider.getBlock(blockNumber);
       const blockTimestamp = block.timestamp;
 
-      const vestingSchedule = treeAfterTGE.vestingSchedules[0];
-      const { address, amount, vestingCliff } = vestingSchedule;
-
-      const proof = treeAfterTGE.getHexProof(treeAfterTGE.hash(vestingSchedule));
-
+      let treasuryBalance = BigNumber.from(0);
       let currentTimestamp = timestampTreeAfterTGE.toNumber();
 
       treeAfterTGE.vestingSchedules.forEach(({ vestingCliff }) => {
@@ -467,16 +815,13 @@ describe('MLTToken contract', () => {
         await ethers.provider.send('evm_mine', []);
       }
 
-      await expect(MLTToken.releaseVested(address, amount, vestingCliff, randomHex(32), proof))
-        .to.revertedWith("Is not valid root");
-
-      const vestingSchedulePromises: Promise<any>[] = [];
+      const vestingSchedulesPromises: Promise<any>[] = [];
 
       for(const key in treeAfterTGE.groupedByUsers) {
-        const user = treeAfterTGE.groupedByUsers[key];
+        const vestingSchedules = treeAfterTGE.groupedByUsers[key];
 
-        vestingSchedulePromises.push(new Promise(async (resolve) => {
-          for(const vestingSchedule of user) {
+        vestingSchedulesPromises.push(new Promise(async (resolve) => {
+          for(const vestingSchedule of vestingSchedules) {
             const { address, amount, vestingCliff } = vestingSchedule;
 
             const userBalBefore = await MLTToken.balanceOf(vestingSchedule.address);
@@ -485,28 +830,44 @@ describe('MLTToken contract', () => {
 
             await expect(
               MLTToken.releaseVested(address, amount, vestingCliff, randomHex(32), proof)
-            ).to.revertedWith("Is not valid root");
+            ).to.revertedWith("Root no valid");
 
-            await MLTToken.releaseVested(address, amount, vestingCliff, rootTreeAfterTGE, proof);
-
-            const userBalAfter = await MLTToken.balanceOf(vestingSchedule.address);
-
-            expect(userBalAfter).to.be.equal(userBalBefore.add(vestingSchedule.amount));
 
             await expect(
-              MLTToken.releaseVested(address, amount, vestingCliff, rootTreeAfterTGE, proof)
-            ).to.revertedWith('Tokens already claimed');
+              MLTToken.releaseVested(address, amount, vestingCliff, rootAfterTGE, [])
+            ).to.revertedWith("Invalid merkle proof");
+
+            const isTreasurer = await MLTToken.isTreasurer(address);
+
+            if(isTreasurer) {
+              treasuryBalance = treasuryBalance.add(amount);
+              await expect(
+                MLTToken.releaseVested(address, amount, vestingCliff, rootAfterTGE, proof)
+              ).to.be.revertedWith("Treasury addresses cannot claim tokens")
+            }
+
+            if(!isTreasurer) {
+              await MLTToken.releaseVested(address, amount, vestingCliff, rootAfterTGE, proof);
+
+              const userBalAfter = await MLTToken.balanceOf(vestingSchedule.address);
+
+              expect(userBalAfter).to.be.equal(userBalBefore.add(vestingSchedule.amount));
+
+              await expect(
+                MLTToken.releaseVested(address, amount, vestingCliff, rootAfterTGE, proof)
+              ).to.revertedWith('Tokens already claimed');
+            }
           }
 
           resolve(true);
         }))
       }
 
-      await Promise.all(vestingSchedulePromises);
+      await Promise.all(vestingSchedulesPromises);
 
-      const allocationBalance = await MLTToken.balanceByRootHash(rootTreeAfterTGE);
+      const allocationBalance = await MLTToken.balanceByRootHash(rootAfterTGE);
 
-      expect(allocationBalance).to.be.equal(0);
-    }
+      expect(allocationBalance.sub(treasuryBalance)).to.be.equal(0);
+    })
   })
 })

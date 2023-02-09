@@ -17,7 +17,7 @@ task('createAddress')
 
     if(isNaN(_amount)) throw new Error('The "--amount" parameter expects a numeric value');
 
-    const addresses = [];
+    const addresses: any[] = [];
 
     for(let i = 0; i < _amount; i++) {
       const wallet = ethers.Wallet.createRandom();
