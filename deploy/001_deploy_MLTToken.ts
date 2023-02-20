@@ -76,7 +76,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     console.log(`Gateway HTTP: https://gateway.ipfs.io/ipfs/${metadataCID}/${filenameIPFS}`);
   }
 
-
   await deploy('MLTToken', {
     log: true,
     from: deployer,

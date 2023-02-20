@@ -29,7 +29,7 @@ import {
 /* tasks */
 if(!TYPECHAIN_ON) {
   require('./tasks/helpers');
-  require('./tasks/merketree');
+  require('./tasks/merkletree');
 }
 
 
