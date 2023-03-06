@@ -5005,7 +5005,7 @@ const launch: VestingUsers[] = [
   },
 ];
 
-const treasury: VestingUsers[] = [
+export const TREASURY_TESTNET: VestingUsers[] = [
   { // Fatima - preSeed
     address: "0x8504bc7f590DB73b423BdC866102a8e77722d41e",
     allocationsType: "preSeed",
@@ -5105,7 +5105,7 @@ const treasury: VestingUsers[] = [
 
 export const VESTING_USERS_TESTNET: VestingUsers[] = [
   ...launch,
-  ...treasury,
+  ...TREASURY_TESTNET,
   // PRE SEED
   { // SAFTHolder
     address: "0x312F0B2B93DF482fdA0F25BaD9Af2F0E006eE87F",

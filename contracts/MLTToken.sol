@@ -36,7 +36,6 @@ contract MLTToken is ERC20 {
 	/*****************************
 	* 2. CONSTANTS AND VARIABLES *
 	******************************/
-	bytes32 public INITIAL_ROOT;
 	uint256 public VESTING_START_TIMESTAMP;
 
 	/// @dev of URIs for all the Merkle trees added to the contract.
@@ -80,14 +79,6 @@ contract MLTToken is ERC20 {
 	/***************
 	* 4. MODIFIERS *
 	****************/
-	/**
-	 * @dev Throws if initial root not valid
-	**/
-	modifier onlyInitialRoot(bytes32 _root) {
-		require(INITIAL_ROOT == _root, "Initial root not valid");
-		_;
-	}
-
 	/**
 	 * @dev Throws if root no valid
 	**/
@@ -144,7 +135,6 @@ contract MLTToken is ERC20 {
 		balanceByRootHash[vestingTreeRoot_] = supply;
 		VESTING_START_TIMESTAMP = vestingStartTimestamp_;
 
-		INITIAL_ROOT = vestingTreeRoot_;
 		emit AddedRoot(vestingTreeRoot_);
 
 		rootURIs.push(uriIPFS_);
@@ -207,7 +197,7 @@ contract MLTToken is ERC20 {
 		bytes32[] memory newAllocationProof_,
 		bytes32[] memory allocationQuantityProof_,
 		VestingData[] calldata vestingSchedules_
-	) external onlyInitialRoot(root_) {
+	) external validRoot(root_) {
 		require(isTreasurer(msg.sender), 'Caller is not a treasurer');
 
 		require(MerkleProof.verify(
