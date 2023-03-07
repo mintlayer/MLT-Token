@@ -353,7 +353,7 @@ describe('MLTToken contract', () => {
 
       await expect(
         MLTToken.addRoot(dummyRoot, dummyRoot, 0, '', allocation1_, [], [], [], [], [])
-      ).to.revertedWith('Initial root not valid');
+      ).to.revertedWith('Root no valid');
     });
 
     it('Should fail if caller is not a treasurer', async () => {
@@ -648,7 +648,7 @@ describe('MLTToken contract', () => {
       ).to.revertedWith("Amount is different from balance");
     });
 
-    it('Should failf if root hash already exists', async () => {
+    it('Should fail if root hash already exists', async () => {
       const { contracts, accounts } = await setup();
       const { treasurer1 } = accounts;
 
@@ -868,6 +868,408 @@ describe('MLTToken contract', () => {
       const allocationBalance = await MLTToken.balanceByRootHash(rootAfterTGE);
 
       expect(allocationBalance.sub(treasuryBalance)).to.be.equal(0);
+    })
+
+    it('N new merkle trees can be added', async () => {
+      const { contracts, accounts } = await setup();
+      const { treasurer1 } = accounts;
+
+      const contractsConnect = await setupUser(treasurer1, contracts);
+      const MLTToken = contractsConnect.MLTToken;
+
+      let balance1 = BigNumber.from(0);
+
+      if(!tree) throw new Error('invalid tree!');
+      if(!VESTING_START_TIMESTAMP) throw new Error('invalid VESTING_START_TIMESTAMP!');
+
+      /****************
+      * treeAfterTGE1 *
+      *****************/
+
+      const vestingSchedulesTreasurer1 = tree.groupedByUsers[treasurer1];
+      const vestingSchedules1 = vestingSchedulesTreasurer1.map((vestingSchedule) => {
+        const { address, amount, vestingCliff } = vestingSchedule;
+
+        balance1 = balance1.add(amount);
+
+        if(!tree) throw new Error('invalid tree!');
+
+        return {
+          beneficiary: address,
+          amount,
+          cliff: vestingCliff,
+          proof: tree.getHexProof(tree.hash(vestingSchedule))
+        }
+      })
+
+      const users1: VestingUsers[] = [
+        {
+          address: treasurer1,
+          allocationsType: "seed",
+          weight: parseEther('0.1'),
+        },
+        {
+          address: "0xDc52fA023D42d500CeE45082cf1cF5BCF3667193",
+          allocationsType: "seed",
+          weight: parseEther('0.1'),
+        },
+        {
+          address: "0x21ed04564eBCBD1268b3819642d2261f2424Ad33",
+          allocationsType: "seed",
+          weight: parseEther('0.1'),
+        },
+        {
+          address: "0x4cDdC75B0A11a38bBd5Af3d9dA9b79730817Df6f",
+          allocationsType: "seed",
+          weight: parseEther('0.1'),
+        },
+        {
+          address: "0x08b679F6C3b1f80C4f191FF0fEc0eDa581626992",
+          allocationsType: "seed",
+          weight: parseEther('0.1'),
+        },
+        {
+          address: "0x43DdDe3FB3E936436F983F48a964eC58E1F82E9F",
+          allocationsType: "seed",
+          weight: parseEther('0.1'),
+        },
+        {
+          address: "0x699590d7019CfcCb32C10f9aA3a878550953BE0f",
+          allocationsType: "seed",
+          weight: parseEther('0.1'),
+        },
+        {
+          address: "0xc2404ECbDbC1AE9e7F1E46B3203D3575f48B6182",
+          allocationsType: "seed",
+          weight: parseEther('0.1'),
+        },
+        {
+          address: "0x1D07Bdd8600eFEB2830B9C34232832BB4388eeAA",
+          allocationsType: "seed",
+          weight: parseEther('0.1'),
+        },
+        {
+          address: "0xFB570607960C2fEC2FAAa324325036f91b44e5C9",
+          allocationsType: "seed",
+          weight: parseEther('0.1'),
+        },
+      ];
+
+      const treeAfterTGE1 = new VestingTree({
+        balance: balance1,
+        users: users1,
+        allocations,
+        vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
+        treasurers: [treasurerData1]
+      });
+
+      const root = tree.getHexRoot();
+      const rootAfterTGE1 = treeAfterTGE1.getHexRoot();
+
+      const initialAllocationProof_ = tree.getHexProof(tree.treasurerHash(treasurerData1));
+      const newAllocationProof1_ = treeAfterTGE1.getHexProof(
+        treeAfterTGE1.treasurerHash(treasurerData1)
+      );
+
+      const balanceProof1_ = treeAfterTGE1.getHexProof(treeAfterTGE1.balancehash(balance1));
+      const allocationQuantityProof1_ = treeAfterTGE1.getHexProof(
+        treeAfterTGE1.allocationQuantityHash()
+      );
+
+      await expect(
+        MLTToken.addRoot(
+          root,
+          rootAfterTGE1,
+          balance1,
+          '',
+          allocation1_,
+          balanceProof1_,
+          initialAllocationProof_,
+          newAllocationProof1_,
+          allocationQuantityProof1_,
+          vestingSchedules1
+        )
+      ).to.be.emit(MLTToken, 'AddedRoot');
+
+      const timestampTreeAfterTGE1 = await MLTToken.VESTING_START_TIMESTAMP();
+
+      const blockNumber = await ethers.provider.getBlockNumber();
+      const block = await ethers.provider.getBlock(blockNumber);
+      const blockTimestamp = block.timestamp;
+
+      let treasuryBalance = BigNumber.from(0);
+      let currentTimestamp = timestampTreeAfterTGE1.toNumber();
+
+      treeAfterTGE1.vestingSchedules.forEach(({ vestingCliff }) => {
+        const timestampTMP = timestampTreeAfterTGE1.add(vestingCliff).toNumber();
+
+        if(currentTimestamp <= timestampTMP) {
+          currentTimestamp = timestampTMP;
+        }
+      })
+
+      if(blockTimestamp <= currentTimestamp) {
+        await ethers.provider.send('evm_setNextBlockTimestamp', [currentTimestamp]);
+        await ethers.provider.send('evm_mine', []);
+      }
+
+      const vestingSchedulesPromises: Promise<any>[] = [];
+
+      for(const key in treeAfterTGE1.groupedByUsers) {
+        const vestingSchedules = treeAfterTGE1.groupedByUsers[key];
+
+        vestingSchedulesPromises.push(new Promise(async (resolve) => {
+          for(const vestingSchedule of vestingSchedules) {
+            const { address, amount, vestingCliff } = vestingSchedule;
+
+            const userBalBefore = await MLTToken.balanceOf(vestingSchedule.address);
+
+            const proof = treeAfterTGE1.getHexProof(treeAfterTGE1.hash(vestingSchedule));
+
+            await expect(
+              MLTToken.releaseVested(address, amount, vestingCliff, randomHex(32), proof)
+            ).to.revertedWith("Root no valid");
+
+
+            await expect(
+              MLTToken.releaseVested(address, amount, vestingCliff, rootAfterTGE1, [])
+            ).to.revertedWith("Invalid merkle proof");
+
+            const isTreasurer = await MLTToken.isTreasurer(address);
+
+            if(isTreasurer) {
+              treasuryBalance = treasuryBalance.add(amount);
+              await expect(
+                MLTToken.releaseVested(address, amount, vestingCliff, rootAfterTGE1, proof)
+              ).to.be.revertedWith("Treasury addresses cannot claim tokens")
+            }
+
+            if(!isTreasurer) {
+              await MLTToken.releaseVested(address, amount, vestingCliff, rootAfterTGE1, proof);
+
+              const userBalAfter = await MLTToken.balanceOf(vestingSchedule.address);
+
+              expect(userBalAfter).to.be.equal(userBalBefore.add(vestingSchedule.amount));
+
+              await expect(
+                MLTToken.releaseVested(address, amount, vestingCliff, rootAfterTGE1, proof)
+              ).to.revertedWith('Tokens already claimed');
+            }
+          }
+
+          resolve(true);
+        }))
+      }
+
+      await Promise.all(vestingSchedulesPromises);
+
+      const allocationBalance = await MLTToken.balanceByRootHash(rootAfterTGE1);
+
+      expect(allocationBalance.sub(treasuryBalance)).to.be.equal(0);
+
+      /****************
+      * treeAfterTGE2 *
+      *****************/
+      let balance2 = BigNumber.from(0);
+
+      const vestingSchedulesTreasurer2 = treeAfterTGE1.groupedByUsers[treasurer1];
+      const vestingSchedules2 = vestingSchedulesTreasurer2.map((vestingSchedule) => {
+        const { address, amount, vestingCliff } = vestingSchedule;
+
+        balance2 = balance2.add(amount);
+
+        return {
+          beneficiary: address,
+          amount,
+          cliff: vestingCliff,
+          proof: treeAfterTGE1.getHexProof(treeAfterTGE1.hash(vestingSchedule))
+        }
+      })
+
+      const users2: VestingUsers[] = [
+        {
+          address: treasurer1,
+          allocationsType: "seed",
+          weight: parseEther('0.5'),
+        },
+        {
+          address: "0xDc52fA023D42d500CeE45082cf1cF5BCF3667193",
+          allocationsType: "seed",
+          weight: parseEther('0.5'),
+        },
+      ];
+
+      const treeAfterTGE2 = new VestingTree({
+        balance: balance2,
+        users: users2,
+        allocations,
+        vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
+        treasurers: [treasurerData1]
+      });
+
+      const root1 = treeAfterTGE1.getHexRoot();
+      const rootAfterTGE2 = treeAfterTGE2.getHexRoot();
+
+      const initialAllocationProof1_ = treeAfterTGE1.getHexProof(treeAfterTGE1.treasurerHash(treasurerData1));
+      const newAllocationProof2_ = treeAfterTGE2.getHexProof(
+        treeAfterTGE2.treasurerHash(treasurerData1)
+      );
+
+      const balanceProof2_ = treeAfterTGE2.getHexProof(treeAfterTGE2.balancehash(balance2));
+      const allocationQuantityProof2_ = treeAfterTGE2.getHexProof(
+        treeAfterTGE2.allocationQuantityHash()
+      );
+
+      await expect(
+        MLTToken.addRoot(
+          root1,
+          rootAfterTGE2,
+          balance2,
+          '',
+          allocation1_,
+          balanceProof2_,
+          initialAllocationProof1_,
+          newAllocationProof2_,
+          allocationQuantityProof2_,
+          vestingSchedules2
+        )
+      ).to.be.emit(MLTToken, 'AddedRoot');
+
+      /****************
+      * treeAfterTGE3 *
+      *****************/
+      let balance3 = BigNumber.from(0);
+
+      const vestingSchedulesTreasurer3 = treeAfterTGE2.groupedByUsers[treasurer1];
+      const vestingSchedules3 = vestingSchedulesTreasurer3.map((vestingSchedule) => {
+        const { address, amount, vestingCliff } = vestingSchedule;
+
+        balance3 = balance3.add(amount);
+
+        return {
+          beneficiary: address,
+          amount,
+          cliff: vestingCliff,
+          proof: treeAfterTGE2.getHexProof(treeAfterTGE2.hash(vestingSchedule))
+        }
+      })
+
+      const users3: VestingUsers[] = [
+        {
+          address: treasurer1,
+          allocationsType: "seed",
+          weight: parseEther('0.5'),
+        },
+        {
+          address: "0xFB570607960C2fEC2FAAa324325036f91b44e5C9",
+          allocationsType: "seed",
+          weight: parseEther('0.5'),
+        },
+      ];
+
+      const treeAfterTGE3 = new VestingTree({
+        balance: balance3,
+        users: users3,
+        allocations,
+        vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
+        treasurers: [treasurerData1]
+      });
+
+      const root2 = treeAfterTGE2.getHexRoot();
+      const rootAfterTGE3 = treeAfterTGE3.getHexRoot();
+
+      const initialAllocationProof2_ = treeAfterTGE2.getHexProof(treeAfterTGE2.treasurerHash(treasurerData1));
+      const newAllocationProof3_ = treeAfterTGE3.getHexProof(
+        treeAfterTGE3.treasurerHash(treasurerData1)
+      );
+
+      const balanceProof3_ = treeAfterTGE3.getHexProof(treeAfterTGE3.balancehash(balance3));
+      const allocationQuantityProof3_ = treeAfterTGE3.getHexProof(
+        treeAfterTGE3.allocationQuantityHash()
+      );
+
+      await expect(
+        MLTToken.addRoot(
+          root2,
+          rootAfterTGE3,
+          balance3,
+          '',
+          allocation1_,
+          balanceProof3_,
+          initialAllocationProof2_,
+          newAllocationProof3_,
+          allocationQuantityProof3_,
+          vestingSchedules3
+        )
+      ).to.be.emit(MLTToken, 'AddedRoot');
+
+      /****************
+      * treeAfterTGE4 *
+      *****************/
+      let balance4 = BigNumber.from(0);
+
+      const vestingSchedulesTreasurer4 = treeAfterTGE3.groupedByUsers[treasurer1];
+      const vestingSchedules4 = vestingSchedulesTreasurer4.map((vestingSchedule) => {
+        const { address, amount, vestingCliff } = vestingSchedule;
+
+        balance4 = balance4.add(amount);
+
+        return {
+          beneficiary: address,
+          amount,
+          cliff: vestingCliff,
+          proof: treeAfterTGE3.getHexProof(treeAfterTGE3.hash(vestingSchedule))
+        }
+      })
+
+      const users4: VestingUsers[] = [
+        {
+          address: treasurer1,
+          allocationsType: "seed",
+          weight: parseEther('0.5'),
+        },
+        {
+          address: "0xFB570607960C2fEC2FAAa324325036f91b44e5C9",
+          allocationsType: "seed",
+          weight: parseEther('0.5'),
+        },
+      ];
+
+      const treeAfterTGE4 = new VestingTree({
+        balance: balance4,
+        users: users4,
+        allocations,
+        vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
+        treasurers: [treasurerData1]
+      });
+
+      const root3 = treeAfterTGE3.getHexRoot();
+      const rootAfterTGE4 = treeAfterTGE4.getHexRoot();
+
+      const initialAllocationProof3_ = treeAfterTGE3.getHexProof(treeAfterTGE3.treasurerHash(treasurerData1));
+      const newAllocationProof4_ = treeAfterTGE4.getHexProof(
+        treeAfterTGE4.treasurerHash(treasurerData1)
+      );
+
+      const balanceProof4_ = treeAfterTGE4.getHexProof(treeAfterTGE4.balancehash(balance4));
+      const allocationQuantityProof4_ = treeAfterTGE4.getHexProof(
+        treeAfterTGE4.allocationQuantityHash()
+      );
+
+      await expect(
+        MLTToken.addRoot(
+          root3,
+          rootAfterTGE4,
+          balance4,
+          '',
+          allocation1_,
+          balanceProof4_,
+          initialAllocationProof3_,
+          newAllocationProof4_,
+          allocationQuantityProof4_,
+          vestingSchedules4
+        )
+      ).to.be.emit(MLTToken, 'AddedRoot');
     })
   })
 })

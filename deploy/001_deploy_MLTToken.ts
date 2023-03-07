@@ -83,7 +83,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
       // string memory _name
       'MLTToken',
       // string memory _symbol
-      'MLT',
+      'ML',
       // string memory _supply
       ALLOCATION_TOTAL_SUPPLY,
       // uriIPFS_ IPFS URI for the initial vesting tree data.

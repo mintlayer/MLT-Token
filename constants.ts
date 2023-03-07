@@ -45,7 +45,7 @@ export const ALLOCATION_TOTAL_SUPPLY = 400_000_000;
 // Timestamp of vesting start as seconds since the Unix epoch
 export const VESTING_START_TIMESTAMP = IS_PRODUCTIVE
   ? null
-  : dayjs.utc('2020-02-02 04:00:00');
+  : dayjs.utc('2023-03-07 04:00:00');
 
 if(IS_PRODUCTIVE && !VESTING_START_TIMESTAMP) {
   throw new Error('No date was defined to start the vesting schedule');
