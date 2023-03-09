@@ -55,9 +55,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   let URI_IPFS = '';
 
   if(!network.tags.local) {
-    const { vestingSchedules } = await vestingTreeExportData({ tree, network, startTimestamp });
+    const {
+      vestingSchedules,
+      treasuryAllocationProof,
+    } = await vestingTreeExportData({ tree, network, startTimestamp });
 
-    const metadata = { root, vestingSchedules };
+    const metadata = { root, vestingSchedules, treasuryAllocationProof };
 
     const filenameIPFS = 'vestingTree_data.json';
 

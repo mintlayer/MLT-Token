@@ -870,7 +870,7 @@ describe('MLTToken contract', () => {
       expect(allocationBalance.sub(treasuryBalance)).to.be.equal(0);
     })
 
-    it('N new merkle trees can be added', async () => {
+    it('a number of N new merkle trees can be added', async () => {
       const { contracts, accounts } = await setup();
       const { treasurer1 } = accounts;
 

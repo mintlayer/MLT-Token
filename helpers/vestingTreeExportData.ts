@@ -2,6 +2,7 @@ import { parseEther } from "ethers/lib/utils";
 import { VestingTree } from '@mintlayer/vesting-tree';
 
 import { twirlTimer } from "./twirlTimer";
+import { TREASURERS } from "../addressbook/vestingAddresses";
 import { ALLOCATION_TOTAL_SUPPLY, NETWORKS } from "../constants";
 
 /* types */
@@ -75,10 +76,21 @@ export async function vestingTreeExportData(props: vestingTreeExportDataParams) 
 
   endDateTimestamp += START_TIMESTAMP;
 
+  const treasuryAllocationProof = TREASURERS.map((treasurer) => {
+    const { address } = treasurer;
+
+    return {
+      address,
+      treeRoot: root,
+      allocationTypeProof: JSON.stringify(tree?.getHexProof(tree.treasurerHash(treasurer))),
+    }
+  })
+
   const result = {
     root,
     networkInfo,
     endDateTimestamp,
+    treasuryAllocationProof,
     startTimestamp: START_TIMESTAMP,
     vestingSchedules: vestingSchedulesSort,
     allocationTotalSupply: parseEther(`${ALLOCATION_TOTAL_SUPPLY}`).toString(),

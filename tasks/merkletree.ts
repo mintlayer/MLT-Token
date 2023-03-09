@@ -543,6 +543,7 @@ subtask(MERKLETREE_EXPORT_DAPP)
       endDateTimestamp,
       vestingSchedules,
       allocationTotalSupply,
+      treasuryAllocationProof,
     } = await vestingTreeExportData({
       tree,
       network,
@@ -588,17 +589,12 @@ subtask(MERKLETREE_EXPORT_DAPP)
     await fileDappHandle.writeFile(data, { encoding: 'utf-8' });
     await fileDappHandle?.close();
 
-    const treasurersWithProof = TREASURERS.map((treasurer) => {
-      const vestingTypeProof = tree?.getHexProof(tree.treasurerHash(treasurer));
-
-      return {
-        ...treasurer,
-        vestingTypeProof
-      }
-    })
-
     data += `export const lastBlockBeforeDeployment = ${lastBlockBeforeDeployment};\n\n`;
-    data += `export const TREASURERS = ${JSON.stringify(treasurersWithProof, null, 2)};\n\n`;
+    data += `export const TREASURERS = ${JSON.stringify(TREASURERS, null, 2)};\n\n`;
+    data += `// @ts-ignore\n`;
+    data += `export const TREASURY_ALLOCATION_PROOF = ${
+      JSON.stringify(treasuryAllocationProof, null, 2)
+    }`;
     data += `// @ts-ignore\n`;
     data += `export const VESTING_SCHEDULES = ${JSON.stringify(vestingSchedules, null, 2)}`;
 
