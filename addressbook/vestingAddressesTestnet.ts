@@ -5153,7 +5153,12 @@ export const VESTING_USERS_TESTNET: VestingUsers[] = [
   { // Javier Cabrera
     address: "0x7F354CeF07267d53aCE00682ddC1D4Dfb06F98Ad",
     allocationsType: "seed",
-    amount: parseEther('2000000'),
+    amount: parseEther('1764302'),
+  },
+  { // Renie
+    address: "0x5CdB8e087dB704a65EDEbf2582c1c6f7E9F4f239",
+    allocationsType: "seed",
+    amount: parseEther('235698'),
   },
   // END - SEED
   // ########################################
@@ -5184,7 +5189,12 @@ export const VESTING_USERS_TESTNET: VestingUsers[] = [
   { // Javier Cabrera
     address: "0x7a900Bbd86c7aAb90F3C89DcebE07Cd28cc86838",
     allocationsType: "shortVesting",
-    amount: parseEther('12799500'),
+    amount: parseEther('12789500'),
+  },
+  { // Javier Cabrera
+    address: "0xeFfA0104E4f27B83DfCc7C329B898C9874565161",
+    allocationsType: "shortVesting",
+    amount: parseEther('10000'),
   },
   // END - SHORT VESTING
   // ########################################
@@ -5229,7 +5239,12 @@ export const VESTING_USERS_TESTNET: VestingUsers[] = [
   { // Javier Cabrera
     address: "0xEb0C6134495385Ca618aB2e881c4A4c327A2C6FE",
     allocationsType: "longVesting",
-    amount: parseEther('14993500'),
+    amount: parseEther('14893500'),
+  },
+  { // Alex
+    address: "0xcFb0Dd551B5eF28053502339bAE9f345D493DC77",
+    allocationsType: "longVesting",
+    amount: parseEther('100000'),
   },
   // END - LONG VESTING
   // ########################################
