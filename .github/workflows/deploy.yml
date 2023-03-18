@@ -31,9 +31,7 @@ jobs:
       run: |
         export NODE_OPTIONS="--max-old-space-size=10240"
         yarn --frozen-lockfile
-        echo "debugging => deploy"
-        id
-        node ./.github/scripts/checkHeapSize.js
+        rm -f dev.js
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
     - uses: stefanzweifel/git-auto-commit-action@v4
