@@ -15,6 +15,8 @@ interface vestingTreeExportDataParams {
   tree: VestingTree;
   MLTToken?: IMLTToken;
   startTimestamp?: number;
+  skipVestingSchedules?: boolean;
+  skipTreasuryAllocationProof?: boolean;
 }
 
 export async function vestingTreeExportData(props: vestingTreeExportDataParams) {
@@ -23,6 +25,8 @@ export async function vestingTreeExportData(props: vestingTreeExportDataParams) 
     network,
     startTimestamp,
     MLTToken = null,
+    skipVestingSchedules = false,
+    skipTreasuryAllocationProof = false,
   } = props;
 
   console.log('\r'); // Line break for better readability of messages
@@ -45,46 +49,53 @@ export async function vestingTreeExportData(props: vestingTreeExportDataParams) 
   if(typeof START_TIMESTAMP != 'number') throw new Error('START_TIMESTAMP invalid');
 
   const vestingSchedules: VestingScheduleWithProof[] = [];
+  let vestingSchedulesSort: VestingScheduleWithProof[] = [];
 
   let endDateTimestamp = 0;
 
-  for(const index in tree.vestingSchedules) {
-    const vesting = tree.vestingSchedules[index];
+  if(!skipVestingSchedules) {
+    for(const index in tree.vestingSchedules) {
 
-    if(vesting.vestingCliff > endDateTimestamp) {
-      endDateTimestamp = vesting.vestingCliff;
+      const vesting = tree.vestingSchedules[index];
+
+      if(vesting.vestingCliff > endDateTimestamp) {
+        endDateTimestamp = vesting.vestingCliff;
+      }
+
+      const count = parseInt(index) + 1;
+      twirlTimer(`Preparing data for admin ${count} of ${tree.vestingSchedules.length}`);
+
+      const hash = tree.hash(vesting);
+      const proof = JSON.stringify(tree.getHexProof(hash));
+
+      vestingSchedules.push({
+        ...vesting,
+        proof,
+        hash,
+      })
     }
 
-    const count = parseInt(index) + 1;
-    twirlTimer(`Preparing data for admin ${count} of ${tree.vestingSchedules.length}`);
-
-    const hash = tree.hash(vesting);
-    const proof = JSON.stringify(tree.getHexProof(hash));
-
-    vestingSchedules.push({
-      ...vesting,
-      proof,
-      hash,
+    vestingSchedulesSort = vestingSchedules.sort((a, b) => {
+      if(a.vestingCliff < b.vestingCliff) return -1;
+      if(a.vestingCliff > b.vestingCliff) return 1;
+      return 0;
     })
   }
 
-  const vestingSchedulesSort = vestingSchedules.sort((a, b) => {
-    if(a.vestingCliff < b.vestingCliff) return -1;
-    if(a.vestingCliff > b.vestingCliff) return 1;
-    return 0;
-  })
 
   endDateTimestamp += START_TIMESTAMP;
 
-  const treasuryAllocationProof = TREASURERS.map((treasurer) => {
-    const { address } = treasurer;
+  const treasuryAllocationProof = skipTreasuryAllocationProof ? [] : TREASURERS.map(
+    (treasurer) => {
+      const { address } = treasurer;
 
-    return {
-      address,
-      treeRoot: root,
-      allocationTypeProof: JSON.stringify(tree?.getHexProof(tree.treasurerHash(treasurer))),
+      return {
+        address,
+        treeRoot: root,
+        allocationTypeProof: JSON.stringify(tree?.getHexProof(tree.treasurerHash(treasurer))),
+      }
     }
-  })
+  )
 
   const result = {
     root,

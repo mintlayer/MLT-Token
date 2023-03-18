@@ -541,13 +541,13 @@ subtask(MERKLETREE_EXPORT_DAPP)
       networkInfo,
       startTimestamp,
       endDateTimestamp,
-      vestingSchedules,
       allocationTotalSupply,
-      treasuryAllocationProof,
     } = await vestingTreeExportData({
       tree,
       network,
       MLTToken,
+      skipVestingSchedules: true,
+      skipTreasuryAllocationProof: true,
     })
 
     const lastBlockBeforeDeployment = await ethers.provider.getBlockNumber();
@@ -584,19 +584,13 @@ subtask(MERKLETREE_EXPORT_DAPP)
     data += `export const NETWORK_CURRENCY_SYMBOL = '${networkInfo.nativeCurrency.symbol}';\n\n`;
     data += `export const NETWORK_DECIMALS = '${networkInfo.nativeCurrency.decimals}';\n\n`;
     data += `export const NETWORK_EXPLORER_URL = '${networkInfo.blockExplorerUrl}';\n\n`;
-    data += `export const ALLOCATIONS = ${JSON.stringify(ALLOCATIONS, null, 2)};\n\n`;
 
     await fileDappHandle.writeFile(data, { encoding: 'utf-8' });
     await fileDappHandle?.close();
 
     data += `export const lastBlockBeforeDeployment = ${lastBlockBeforeDeployment};\n\n`;
+    data += `export const ALLOCATIONS = ${JSON.stringify(ALLOCATIONS, null, 2)};\n\n`;
     data += `export const TREASURERS = ${JSON.stringify(TREASURERS, null, 2)};\n\n`;
-    data += `// @ts-ignore\n`;
-    data += `export const TREASURY_ALLOCATION_PROOF = ${
-      JSON.stringify(treasuryAllocationProof, null, 2)
-    }`;
-    data += `// @ts-ignore\n`;
-    data += `export const VESTING_SCHEDULES = ${JSON.stringify(vestingSchedules, null, 2)}`;
 
     await fileApiHandle.writeFile(data, { encoding: 'utf-8' });
     await fileApiHandle?.close();
