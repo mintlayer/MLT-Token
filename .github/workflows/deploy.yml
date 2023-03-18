@@ -12,6 +12,8 @@ jobs:
       - ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
 
     env:
+      NODE_OPTIONS: "--max-old-space-size=10240"
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
       MUMBAI_ALCHEMY_API_KEY: ${{ secrets.MUMBAI_ALCHEMY_API_KEY }}
       TREASURER_WALLET_PRIVKEY: ${{ secrets.TREASURER_WALLET_PRIVKEY }}
       WALLET_PRIVKEY: ${{ secrets.WALLET_PRIVKEY }}
@@ -29,15 +31,9 @@ jobs:
         scope: '@mintlayer'
     - name: Install dependencies
       run: |
-        export NODE_OPTIONS="--max-old-space-size=10240"
         yarn --frozen-lockfile
         rm -f dev.js
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
-    - uses: stefanzweifel/git-auto-commit-action@v4
-      with:
-        commit_message: Apply deploy changes (github-actions)
-        # file_pattern: 'deployments/*'
+        node ./.github/scripts/checkHeapSize.js
     - name: "Run if changes have been detected"
       if: steps.auto-commit-action.outputs.changes_detected == 'true'
       run: echo "Changes!"
@@ -45,3 +41,7 @@ jobs:
     - name: "Run if no changes have been detected"
       if: steps.auto-commit-action.outputs.changes_detected == 'false'
       run: echo "No Changes!"
+    - uses: stefanzweifel/git-auto-commit-action@v4
+      with:
+        commit_message: Apply deploy changes (github-actions)
+        # file_pattern: 'deployments/*'
