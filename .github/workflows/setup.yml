@@ -15,6 +15,7 @@ jobs:
       MUMBAI_ALCHEMY_API_KEY: ${{ secrets.MUMBAI_ALCHEMY_API_KEY }}
       TREASURER_WALLET_PRIVKEY: ${{ secrets.TREASURER_WALLET_PRIVKEY }}
       WALLET_PRIVKEY: ${{ secrets.WALLET_PRIVKEY }}
+      ETH_MAINNET_ALCHEMY_API_KEY: ${{ secrets.ETH_MAINNET_ALCHEMY_API_KEY }}
 
     steps:
     - uses: actions/checkout@v3
