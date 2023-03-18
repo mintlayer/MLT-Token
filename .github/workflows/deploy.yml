@@ -31,13 +31,14 @@ jobs:
       run: |
         yarn --frozen-lockfile
         echo "debugging => deploy"
+        id
         node ./.github/scripts/checkHeapSize.js
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
     - uses: stefanzweifel/git-auto-commit-action@v4
       with:
         commit_message: Apply deploy changes (github-actions)
-        file_pattern: 'deployments/*'
+        # file_pattern: 'deployments/*'
     - name: "Run if changes have been detected"
       if: steps.auto-commit-action.outputs.changes_detected == 'true'
       run: echo "Changes!"
