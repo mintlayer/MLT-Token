@@ -1,11 +1,11 @@
-name: Setup CI
+name: Deploy CI
 
 on:
   push:
-    branches: [ test, deploy ]
+    branches: [ deploy ]
 
 jobs:
-  build:
+  deploy:
 
     runs-on:
       - self-hosted
@@ -28,13 +28,20 @@ jobs:
         registry-url: https://npm.pkg.github.com
         scope: '@mintlayer'
     - name: Install dependencies
-      run: yarn --frozen-lockfile
+      run: |
+        yarn --frozen-lockfile
+        echo "debugging => deploy"
+        node ./.github/scripts/checkHeapSize.js
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
-    - name: Debugging
-      run: |
-        if [ ${{ github.ref }} == 'refs/heads/test' ]; then
-          yarn coverage
-        elif [ ${{ github.ref }} == 'refs/heads/deploy' ]; then
-          echo "debugging => deploy"
-        fi
+    - uses: stefanzweifel/git-auto-commit-action@v4
+      with:
+        commit_message: Apply deploy changes (github-actions)
+        file_pattern: 'deployments/*'
+    - name: "Run if changes have been detected"
+      if: steps.auto-commit-action.outputs.changes_detected == 'true'
+      run: echo "Changes!"
+
+    - name: "Run if no changes have been detected"
+      if: steps.auto-commit-action.outputs.changes_detected == 'false'
+      run: echo "No Changes!"
