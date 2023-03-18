@@ -30,6 +30,9 @@ let tree: VestingTree | null = null;
 async function setup() {
   await deployments.fixture(['MLTToken']);
 
+  const accounts = await getNamedAccounts() as Accounts;
+
+
   if(!tree) {
     if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid');
 
@@ -39,10 +42,9 @@ async function setup() {
       vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
       balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
       treasurers: TREASURERS,
+      ownerAddress: accounts.deployer
     });
   }
-
-  const accounts = await getNamedAccounts() as Accounts;
 
   const [ MLTToken ] = await Promise.all([
     ethers.getContract<IMLTToken>('MLTToken'),
