@@ -28,7 +28,7 @@ jobs:
     - name: Debugging
       run: |
         if [ ${{ github.ref }} == 'refs/heads/test' ]; then
-          echo "debugging => test"
+          yarn coverage
         elif [ ${{ github.ref }} == 'refs/heads/deploy' ]; then
           echo "debugging => deploy"
         fi
