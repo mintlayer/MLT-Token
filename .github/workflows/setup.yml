@@ -11,6 +11,11 @@ jobs:
       - self-hosted
       - ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
 
+    env:
+      MUMBAI_ALCHEMY_API_KEY: ${{ secrets.MUMBAI_ALCHEMY_API_KEY }}
+      TREASURER_WALLET_PRIVKEY: ${{ secrets.TREASURER_WALLET_PRIVKEY }}
+      WALLET_PRIVKEY: ${{ secrets.WALLET_PRIVKEY }}
+
     steps:
     - uses: actions/checkout@v3
       with:
