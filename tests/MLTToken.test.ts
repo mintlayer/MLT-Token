@@ -75,7 +75,7 @@ describe('MLTToken contract', () => {
     .to.revertedWith('Root no valid');
   });
 
-  it('Successfully claim vesting. It will fail if you try to claim multiple times', async () => {/* 
+  it('Successfully claim vesting. It will fail if you try to claim multiple times', async () => {
       const { contracts: { MLTToken } } = await setup();
 
       if(!tree) throw new Error('tree invalid!');
@@ -119,9 +119,9 @@ describe('MLTToken contract', () => {
       await expect(
         MLTToken.releaseVested(address, amount, vestingCliff, root, proof)
       ).to.revertedWith('Tokens already claimed');
-   */});
+  });
 
-  it('All vesting should be released', async () => {/* 
+  it('All vesting should be released', async () => {
     const { contracts: { MLTToken } } = await setup();
 
     if(!tree) throw new Error('tree invalid!');
@@ -202,9 +202,9 @@ describe('MLTToken contract', () => {
     const allocationBalance = await MLTToken.balanceByRootHash(root);
 
     expect(allocationBalance.sub(treasuryBalance)).to.be.equal(0);
-   */});
+  });
 
-  it('Batches release', async () => {/* 
+  it('Batches release', async () => {
     const { contracts: { MLTToken } } = await setup();
 
     const batches: IMLTToken.VestingDataStruct[][] = [];
@@ -255,7 +255,7 @@ describe('MLTToken contract', () => {
     const allocationBalance = await MLTToken.balanceByRootHash(root);
 
     expect(allocationBalance.sub(treasuryBalance)).to.be.equal(0);
-   */})
+  })
 
   describe('After TGE', () => {
     const usersTGE: VestingUsers[] = [
@@ -1158,12 +1158,12 @@ describe('MLTToken contract', () => {
         {
           address: treasurer1,
           allocationsType: "seed",
-          weight: parseEther('0.5'),
+          amount: balance3.sub(parseEther('100')),
         },
         {
           address: "0xFB570607960C2fEC2FAAa324325036f91b44e5C9",
           allocationsType: "seed",
-          weight: parseEther('0.5'),
+          amount: parseEther('100'),
         },
       ];
 
