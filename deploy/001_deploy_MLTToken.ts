@@ -34,6 +34,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
     vestingStartTimestamp: startTimestamp,
     treasurers: TREASURERS,
+    ownerAddress: deployer
   });
 
   const treasurersArray: string[] = [];

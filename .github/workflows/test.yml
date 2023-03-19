@@ -12,6 +12,8 @@ jobs:
       - ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
 
     env:
+      NODE_OPTIONS: "--max-old-space-size=10240"
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
       MUMBAI_ALCHEMY_API_KEY: ${{ secrets.MUMBAI_ALCHEMY_API_KEY }}
       TREASURER_WALLET_PRIVKEY: ${{ secrets.TREASURER_WALLET_PRIVKEY }}
       WALLET_PRIVKEY: ${{ secrets.WALLET_PRIVKEY }}
@@ -19,18 +21,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-      with:
-        fetch-depth: 2
     - uses: actions/setup-node@v3
       with:
         always-auth: true
         node-version-file: .nvmrc
         registry-url: https://npm.pkg.github.com
         scope: '@mintlayer'
+
     - name: Install dependencies
-      run: |
-        export NODE_OPTIONS="--max-old-space-size=10240"
-        yarn --frozen-lockfile
-        yarn coverage
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
+      run: yarn --frozen-lockfile
+
+    - name: Run test
+      run: yarn coverage

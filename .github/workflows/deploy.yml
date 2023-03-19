@@ -9,7 +9,8 @@ jobs:
 
     runs-on:
       - self-hosted
-      - ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+      - production
+      # - ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
 
     env:
       NODE_OPTIONS: "--max-old-space-size=10240"
@@ -21,19 +22,23 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-      with:
-        fetch-depth: 2
     - uses: actions/setup-node@v3
       with:
         always-auth: true
         node-version-file: .nvmrc
         registry-url: https://npm.pkg.github.com
         scope: '@mintlayer'
+
+    - uses: stefanzweifel/git-auto-commit-action@v4
+      with:
+        commit_message: Apply deploy changes (github-actions)
+        # file_pattern: 'deployments/*'
+
     - name: Install dependencies
       run: |
         yarn --frozen-lockfile
-        rm -f dev.js
         node ./.github/scripts/checkHeapSize.js
+
     - name: "Run if changes have been detected"
       if: steps.auto-commit-action.outputs.changes_detected == 'true'
       run: echo "Changes!"
@@ -41,7 +46,4 @@ jobs:
     - name: "Run if no changes have been detected"
       if: steps.auto-commit-action.outputs.changes_detected == 'false'
       run: echo "No Changes!"
-    - uses: stefanzweifel/git-auto-commit-action@v4
-      with:
-        commit_message: Apply deploy changes (github-actions)
-        # file_pattern: 'deployments/*'
+
