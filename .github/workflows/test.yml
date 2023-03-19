@@ -27,7 +27,9 @@ jobs:
         node-version-file: .nvmrc
         registry-url: https://npm.pkg.github.com
         scope: '@mintlayer'
+
     - name: Install dependencies
-      run: |
-        yarn --frozen-lockfile
-        yarn coverage
+      run: yarn --frozen-lockfile
+
+    - name: Run test
+      run: yarn coverage

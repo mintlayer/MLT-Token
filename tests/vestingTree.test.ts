@@ -1,5 +1,5 @@
 import { BigNumber } from 'ethers';
-import { parseEther } from 'ethers/lib/utils';
+import { parseEther, formatEther } from 'ethers/lib/utils';
 import { VestingTree } from '@mintlayer/vesting-tree';
 import { deployments, ethers, getNamedAccounts } from 'hardhat';
 
@@ -60,7 +60,7 @@ describe('Vesting merkle tree', () => {
     assert.ok(exist);
   });
 
-  // it('The corresponding amounts of tokens must be unlocked for each release date', async () => {
+  // it.only('The corresponding amounts of tokens must be unlocked for each release date', async () => {
   //   const { tree } = await setup();
 
   //   // Multiplier to prevent underflow for numbers too small to use with BigNumber
@@ -90,6 +90,9 @@ describe('Vesting merkle tree', () => {
   //         )
   //       }
 
+  //       console.log('unlockedTokensExpected A:', formatEther(unlockedTokensExpected));
+  //       console.log('unlockedTokensObtained A:', formatEther(unlockedTokensObtained));
+        
   //       // Total tokens unlocked at first day of TGE
   //       expect(unlockedTokensExpected).to.be.equal(unlockedTokensObtained);
 
@@ -125,6 +128,8 @@ describe('Vesting merkle tree', () => {
   //           }
   //         })
 
+  //         console.log('unlockedTokensExpected', formatEther(unlockedTokensExpected));
+  //         console.log('unlockedTokensObtained', formatEther(unlockedTokensObtained));
   //         // Total tokens unlocked after TGE
   //         expect(unlockedTokensExpected).to.be.equal(unlockedTokensObtained);
   //       })

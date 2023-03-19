@@ -27,11 +27,17 @@ jobs:
         node-version-file: .nvmrc
         registry-url: https://npm.pkg.github.com
         scope: '@mintlayer'
+
+    - uses: stefanzweifel/git-auto-commit-action@v4
+      with:
+        commit_message: Apply deploy changes (github-actions)
+        # file_pattern: 'deployments/*'
+
     - name: Install dependencies
       run: |
         yarn --frozen-lockfile
-        rm -f dev.js
         node ./.github/scripts/checkHeapSize.js
+
     - name: "Run if changes have been detected"
       if: steps.auto-commit-action.outputs.changes_detected == 'true'
       run: echo "Changes!"
@@ -39,7 +45,4 @@ jobs:
     - name: "Run if no changes have been detected"
       if: steps.auto-commit-action.outputs.changes_detected == 'false'
       run: echo "No Changes!"
-    - uses: stefanzweifel/git-auto-commit-action@v4
-      with:
-        commit_message: Apply deploy changes (github-actions)
-        # file_pattern: 'deployments/*'
+
