@@ -39,6 +39,9 @@ jobs:
         yarn --frozen-lockfile
         node ./.github/scripts/checkHeapSize.js
 
+    - name: Run deploy
+      run: yarn deploy --network mumbai --tags MLTToken
+
     - name: "Run if changes have been detected"
       if: steps.auto-commit-action.outputs.changes_detected == 'true'
       run: echo "Changes!"
