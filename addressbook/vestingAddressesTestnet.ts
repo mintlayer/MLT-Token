@@ -5005,7 +5005,7 @@ const launch: VestingUsers[] = [
   },
 ];
 
-export const TREASURY_TESTNET_OLD: VestingUsers[] = [
+export const TREASURY_TESTNET: VestingUsers[] = [
   { // Fatima - preSeed
     address: "0x8504bc7f590DB73b423BdC866102a8e77722d41e",
     allocationsType: "preSeed",
@@ -5103,7 +5103,7 @@ export const TREASURY_TESTNET_OLD: VestingUsers[] = [
   },
 ];
 
-export const VESTING_USERS_TESTNET_OLD: VestingUsers[] = [
+export const VESTING_USERS_TESTNET: VestingUsers[] = [
   ...launch,
   ...TREASURY_TESTNET_OLD,
   // PRE SEED
@@ -5250,7 +5250,7 @@ export const VESTING_USERS_TESTNET_OLD: VestingUsers[] = [
   // ########################################
 ];
 
-export const TREASURY_TESTNET: VestingUsers[] = [
+export const OLD_TREASURY_TESTNET: VestingUsers[] = [
   {
     address: "0x677146C7F8621E0F4acE2Fe0008cf790D83DcEe6",
     allocationsType: "seed",
@@ -5293,7 +5293,7 @@ export const TREASURY_TESTNET: VestingUsers[] = [
   },
 ];
 
-export const VESTING_USERS_TESTNET: VestingUsers[] = [
+export const OLD_VESTING_USERS_TESTNET: VestingUsers[] = [
   ...TREASURY_TESTNET,
   {
     address: "0x3FD963a08953A344FdA2303d692fDeE017280f6d",
