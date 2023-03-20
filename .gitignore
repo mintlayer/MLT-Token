@@ -11,6 +11,7 @@ coverage.json
 
 # Buidler cache
 cached/
+deploy_mlt-token.log
 
 # Ignore solc bin output
 bin/
