@@ -97,7 +97,7 @@ describe('Vesting merkle tree', () => {
   //       console.log('unlockedTokensObtained A:', formatEther(unlockedTokensObtained));
 
   //       // Total tokens unlocked at first day of TGE
-  //       // expect(unlockedTokensExpected).to.be.equal(unlockedTokensObtained);
+  //       expect(unlockedTokensExpected).to.be.equal(unlockedTokensObtained);
 
   //       months.forEach((month, monthIndex) => {
   //         const prevCycle = (monthIndex > 0) ? months[monthIndex - 1] : 0;
@@ -134,7 +134,7 @@ describe('Vesting merkle tree', () => {
   //         console.log('unlockedTokensExpected', formatEther(unlockedTokensExpected));
   //         console.log('unlockedTokensObtained', formatEther(unlockedTokensObtained));
   //         // Total tokens unlocked after TGE
-  //         // expect(unlockedTokensExpected).to.be.equal(unlockedTokensObtained);
+  //         expect(unlockedTokensExpected).to.be.equal(unlockedTokensObtained);
   //       })
   //     }
   //   }
@@ -156,58 +156,58 @@ describe('Vesting merkle tree', () => {
     });
   })
 
-  it('The sum of the percentages for all pools must be equal to 100%', async () => {/*
-    const vestingTotal = Object.entries(ALLOCATIONS).reduce((prev, current) => {
-      const [ _, value ] = current;
-      return prev.add(value.percentage);
-    }, BigNumber.from(0));
+  // it('The sum of the percentages for all pools must be equal to 100%', async () => {
+  //   const vestingTotal = Object.entries(ALLOCATIONS).reduce((prev, current) => {
+  //     const [ _, value ] = current;
+  //     return prev.add(value.percentage);
+  //   }, BigNumber.from(0));
 
-    expect(vestingTotal).to.be.equal(parseEther('1'));
+  //   expect(vestingTotal).to.be.equal(parseEther('1'));
 
-    type Pools = {[allocationType: string]: {
-      weight: BigNumber;
-      amount: BigNumber;
-    }}
+  //   type Pools = {[allocationType: string]: {
+  //     weight: BigNumber;
+  //     amount: BigNumber;
+  //   }}
 
-    const pools: Pools = {};
+  //   const pools: Pools = {};
 
-    VESTING_USERS.forEach((user) => {
-      const {
-        allocationsType,
-        weight = BigNumber.from(0),
-        amount = BigNumber.from(0),
-      } = user;
-      if(pools.hasOwnProperty(allocationsType)) {
-        pools[allocationsType] = {
-          weight: pools[allocationsType].weight.add(weight),
-          amount: pools[allocationsType].amount.add(amount)
-        };
-      } else {
-        pools[allocationsType] = { weight, amount };
-      }
-    });
+  //   VESTING_USERS.forEach((user) => {
+  //     const {
+  //       allocationsType,
+  //       weight = BigNumber.from(0),
+  //       amount = BigNumber.from(0),
+  //     } = user;
+  //     if(pools.hasOwnProperty(allocationsType)) {
+  //       pools[allocationsType] = {
+  //         weight: pools[allocationsType].weight.add(weight),
+  //         amount: pools[allocationsType].amount.add(amount)
+  //       };
+  //     } else {
+  //       pools[allocationsType] = { weight, amount };
+  //     }
+  //   });
 
-    Object.entries(pools).forEach(([key, value]) => {
-      const { weight, amount } = value;
+  //   Object.entries(pools).forEach(([key, value]) => {
+  //     const { weight, amount } = value;
 
-      const supply: number = POOLS_SUPPLY[key];
-      const remainder = weight.mul(supply);
+  //     const supply: number = POOLS_SUPPLY[key];
+  //     const remainder = weight.mul(supply);
 
-      expect(remainder.add(amount)).to.be.equal(parseEther(supply.toString()));
-    })
-   */})
+  //     expect(remainder.add(amount)).to.be.equal(parseEther(supply.toString()));
+  //   })
+  // })
 
-  it('Total supply of allocations should match with the sum of the merkle tree', async () => {/*
-    const { tree, contracts: { MLTToken }} = await setup();
+  // it('Total supply of allocations should match with the sum of the merkle tree', async () => {
+  //   const { tree, contracts: { MLTToken }} = await setup();
 
-    const totalAllocations = tree.vestingSchedules.reduce((prev, currentSchedule) => {
-      return prev.add(currentSchedule.amount);
-    }, BigNumber.from(0));
+  //   const totalAllocations = tree.vestingSchedules.reduce((prev, currentSchedule) => {
+  //     return prev.add(currentSchedule.amount);
+  //   }, BigNumber.from(0));
 
-    const totalSupply = await MLTToken.totalSupply();
+  //   const totalSupply = await MLTToken.totalSupply();
 
-    expect(totalAllocations).to.be.equal(totalSupply);
-   */});
+  //   expect(totalAllocations).to.be.equal(totalSupply);
+  // });
 
   it('A merkle proof should be checked on the chain', async () => {
     const { tree, contracts: { MLTToken }} = await setup();

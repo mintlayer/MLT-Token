@@ -32,9 +32,9 @@ const MSG_GREEN = chalk.green;
 const MSG_YELLOW = chalk.yellow;
 
 /* types */
+import type { Accounts } from 'typescript/hardhat';
 import type { MLTToken as IMLTToken } from '../build/types';
 import type { HardhatRuntimeEnvironment } from "hardhat/types";
-import type { VestingScheduleWithProof } from '@mintlayer/vesting-tree/dist/types';
 
 let tree: VestingTree | undefined;
 
@@ -45,6 +45,9 @@ const SUBMIT_RELEASED_VESTING = 'SUBMIT_RELEASED_VESTING';
 const MERKLETREE_RELEASE_DATES = 'MERKLETREE_RELEASE_DATES';
 
 task('merkletree').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
+  const { getNamedAccounts } = hre;
+  const { deployer } = await getNamedAccounts() as Accounts;
+
   if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid');
 
   tree = new VestingTree({
@@ -53,6 +56,7 @@ task('merkletree').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
     balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
     vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
     treasurers: TREASURERS,
+    ownerAddress: deployer
   });
 
   const questions = await prompt({

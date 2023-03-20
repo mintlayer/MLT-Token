@@ -31,11 +31,7 @@ export const {
   ETH_MAINNET_ALCHEMY_API_KEY,
 } = process.env;
 
-export const IS_PRODUCTIVE = false;
-
-if(IS_PRODUCTIVE) {
-  throw new Error('Before moving to productive environment run a double validation of the variables/settings and then remove this error');
-}
+export const IS_PRODUCTIVE = true;
 
 export const BATCH_SIZE = 50;
 export const GAS_LIMIT = 3_000_000;
@@ -44,12 +40,8 @@ export const ALLOCATION_TOTAL_SUPPLY = 400_000_000;
 
 // Timestamp of vesting start as seconds since the Unix epoch
 export const VESTING_START_TIMESTAMP = IS_PRODUCTIVE
-  ? null
+  ? dayjs.utc('2020-03-21 00:00:00')
   : dayjs.utc('2023-03-21 00:00:00');
-
-if(IS_PRODUCTIVE && !VESTING_START_TIMESTAMP) {
-  throw new Error('No date was defined to start the vesting schedule');
-}
 
 if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid');
 
