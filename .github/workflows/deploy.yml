@@ -9,7 +9,8 @@ jobs:
 
     runs-on:
       - self-hosted
-      - ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+      - production
+      # - ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
 
     env:
       NODE_OPTIONS: "--max-old-space-size=10240"
@@ -37,6 +38,9 @@ jobs:
       run: |
         yarn --frozen-lockfile
         node ./.github/scripts/checkHeapSize.js
+
+    - name: Run deploy
+      run: yarn deploy --network mumbai --tags MLTToken
 
     - name: "Run if changes have been detected"
       if: steps.auto-commit-action.outputs.changes_detected == 'true'

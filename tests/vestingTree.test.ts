@@ -16,6 +16,7 @@ import {
 /* types */
 import type { Accounts } from 'typescript/hardhat';
 import type { MLTToken as IMLTToken } from 'build/types';
+import { AllocationsType } from '@mintlayer/vesting-tree/dist/types';
 
 let tree: VestingTree | null = null;
 
@@ -60,13 +61,14 @@ describe('Vesting merkle tree', () => {
     assert.ok(exist);
   });
 
-  // it.only('The corresponding amounts of tokens must be unlocked for each release date', async () => {
+  // it('The corresponding amounts of tokens must be unlocked for each release date', async () => {
   //   const { tree } = await setup();
 
   //   // Multiplier to prevent underflow for numbers too small to use with BigNumber
   //   const DENOMINATOR = 10_000;
 
-  //   Object.keys(ALLOCATIONS).forEach((allocationType: string) => {
+  //   for(const key in ALLOCATIONS) {
+  //     const allocationType = key as AllocationsType;
   //     const { percentage, vestingInfo } = ALLOCATIONS[allocationType];
 
   //     if(vestingInfo !== 'unlocked') {
@@ -83,18 +85,19 @@ describe('Vesting merkle tree', () => {
 
   //       const vestingSchedules = tree.allocationTypeMapCliff[allocationType]?.[cliff];
   //       if(vestingSchedules) {
-  //         unlockedTokensObtained = unlockedTokensObtained.add(
-  //           vestingSchedules.reduce((prev, { amount }) => {
-  //             return prev.add(amount);
-  //           }, BigNumber.from(0))
-  //         )
+  //         for(const { amount } of vestingSchedules) {
+  //           unlockedTokensObtained = unlockedTokensObtained.add(amount);
+  //         }
   //       }
 
+  //       console.log('cliff', cliff);
+  //       console.log('unlocking', unlocking);
+  //       console.log('allocationType', allocationType);
   //       console.log('unlockedTokensExpected A:', formatEther(unlockedTokensExpected));
   //       console.log('unlockedTokensObtained A:', formatEther(unlockedTokensObtained));
-        
+
   //       // Total tokens unlocked at first day of TGE
-  //       expect(unlockedTokensExpected).to.be.equal(unlockedTokensObtained);
+  //       // expect(unlockedTokensExpected).to.be.equal(unlockedTokensObtained);
 
   //       months.forEach((month, monthIndex) => {
   //         const prevCycle = (monthIndex > 0) ? months[monthIndex - 1] : 0;
@@ -131,10 +134,10 @@ describe('Vesting merkle tree', () => {
   //         console.log('unlockedTokensExpected', formatEther(unlockedTokensExpected));
   //         console.log('unlockedTokensObtained', formatEther(unlockedTokensObtained));
   //         // Total tokens unlocked after TGE
-  //         expect(unlockedTokensExpected).to.be.equal(unlockedTokensObtained);
+  //         // expect(unlockedTokensExpected).to.be.equal(unlockedTokensObtained);
   //       })
   //     }
-  //   })
+  //   }
   // })
 
   it('The sum of the percentages for all vesting types must be equal to 100%', async () => {
@@ -153,7 +156,7 @@ describe('Vesting merkle tree', () => {
     });
   })
 
-  it('The sum of the percentages for all pools must be equal to 100%', async () => {/* 
+  it('The sum of the percentages for all pools must be equal to 100%', async () => {/*
     const vestingTotal = Object.entries(ALLOCATIONS).reduce((prev, current) => {
       const [ _, value ] = current;
       return prev.add(value.percentage);
@@ -194,7 +197,7 @@ describe('Vesting merkle tree', () => {
     })
    */})
 
-  it('Total supply of allocations should match with the sum of the merkle tree', async () => {/* 
+  it('Total supply of allocations should match with the sum of the merkle tree', async () => {/*
     const { tree, contracts: { MLTToken }} = await setup();
 
     const totalAllocations = tree.vestingSchedules.reduce((prev, currentSchedule) => {

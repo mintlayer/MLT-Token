@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { BigNumber, ContractTransaction } from 'ethers';
 import { randomHex } from 'web3-utils';
 import { parseEther } from 'ethers/lib/utils';
 import { VestingTree } from '@mintlayer/vesting-tree';
@@ -133,13 +133,13 @@ describe('MLTToken contract', () => {
 
     let currentTimestamp = VESTING_TIMESTAMP.toNumber();
 
-    tree.vestingSchedules.forEach((vestingSchedule) => {
+    for(const vestingSchedule of tree.vestingSchedules) {
       const timestampTMP = VESTING_TIMESTAMP.add(vestingSchedule.vestingCliff).toNumber();
 
       if(currentTimestamp <= timestampTMP) {
         currentTimestamp = timestampTMP;
       }
-    })
+    }
 
     const blockNumber = await ethers.provider.getBlockNumber();
     const block = await ethers.provider.getBlock(blockNumber);
@@ -248,9 +248,11 @@ describe('MLTToken contract', () => {
       batches.push(users);
     }
 
-    const batchesPromises = batches.map((users) => {
-      return MLTToken.batchReleaseVested(users, root, { gasLimit: GAS_LIMIT });
-    })
+    const batchesPromises: Promise<ContractTransaction>[] = [];
+
+    for(const users of batches) {
+      batchesPromises.push(MLTToken.batchReleaseVested(users, root, { gasLimit: GAS_LIMIT }));
+    }
 
     await Promise.all(batchesPromises);
 
