@@ -40,7 +40,7 @@ jobs:
         node ./.github/scripts/checkHeapSize.js
 
     - name: Run deploy
-      run: yarn deploy --network mumbai --tags MLTToken > /var/log/deploy_mlt-token.log
+      run: yarn deploy --network mumbai --tags MLTToken > deploy_mlt-token.log
 
     - name: "Run if changes have been detected"
       if: steps.auto-commit-action.outputs.changes_detected == 'true'
