@@ -19,6 +19,7 @@ jobs:
       TREASURER_WALLET_PRIVKEY: ${{ secrets.TREASURER_WALLET_PRIVKEY }}
       WALLET_PRIVKEY: ${{ secrets.WALLET_PRIVKEY }}
       ETH_MAINNET_ALCHEMY_API_KEY: ${{ secrets.ETH_MAINNET_ALCHEMY_API_KEY }}
+      WEB3STORAGE_TOKEN: ${{ secrets.WEB3STORAGE_TOKEN }}
 
     steps:
     - uses: actions/checkout@v3
