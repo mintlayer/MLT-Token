@@ -5105,7 +5105,7 @@ export const TREASURY_TESTNET: VestingUsers[] = [
 
 export const VESTING_USERS_TESTNET: VestingUsers[] = [
   ...launch,
-  ...TREASURY_TESTNET_OLD,
+  ...TREASURY_TESTNET,
   // PRE SEED
   { // SAFTHolder
     address: "0x312F0B2B93DF482fdA0F25BaD9Af2F0E006eE87F",
@@ -5294,7 +5294,7 @@ export const OLD_TREASURY_TESTNET: VestingUsers[] = [
 ];
 
 export const OLD_VESTING_USERS_TESTNET: VestingUsers[] = [
-  ...TREASURY_TESTNET,
+  ...OLD_TREASURY_TESTNET,
   {
     address: "0x3FD963a08953A344FdA2303d692fDeE017280f6d",
     allocationsType: "longVesting",
