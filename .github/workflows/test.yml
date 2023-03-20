@@ -9,7 +9,7 @@ jobs:
 
     runs-on:
       - self-hosted
-      - ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+      - development
 
     env:
       NODE_OPTIONS: "--max-old-space-size=10240"
