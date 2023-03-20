@@ -35,6 +35,7 @@ const MSG_YELLOW = chalk.yellow;
 import type { Accounts } from 'typescript/hardhat';
 import type { MLTToken as IMLTToken } from '../build/types';
 import type { HardhatRuntimeEnvironment } from "hardhat/types";
+import axios from 'axios';
 
 let tree: VestingTree | undefined;
 
@@ -43,6 +44,141 @@ const MERKLETREE_EXPORT = 'MERKLETREE_EXPORT';
 const MERKLETREE_EXPORT_DAPP = 'MERKLETREE_EXPORT_DAPP';
 const SUBMIT_RELEASED_VESTING = 'SUBMIT_RELEASED_VESTING';
 const MERKLETREE_RELEASE_DATES = 'MERKLETREE_RELEASE_DATES';
+
+task('releases').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
+  const { getNamedAccounts, network, deployments, ethers } = hre;
+  const { deployer } = await getNamedAccounts() as Accounts;
+
+  if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid');
+
+  tree = new VestingTree({
+    users: VESTING_USERS,
+    allocations: ALLOCATIONS,
+    balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
+    vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
+    treasurers: TREASURERS,
+    ownerAddress: deployer
+  });
+
+  if(network.name == 'hardhat') {
+    await deployments.fixture(['MLTToken']);
+  }
+
+  const MLTToken = await ethers.getContract<IMLTToken>('MLTToken');
+
+  interface VestingSchedulesIPFS {
+    address: string;
+    amount: string;
+    vestingCliff: number;
+    allocationsType: string;
+    proof: string;
+    hash: string;
+  }
+
+  interface ScheduleBatch {
+    root: string;
+    vestingSchedules: VestingSchedulesIPFS[];
+    treasuryAllocationProof: {
+      address: string;
+      treeRoot: string;
+      allocationTypeProof: string;
+    }[];
+  }
+
+  const scheduleBatch: ScheduleBatch[] = [];
+
+  let rootURIsIndex = 0;
+  let foundRootURIsFlag = false;
+  const rootURIs: string[] = [];
+
+  while(!foundRootURIsFlag) {
+    try {
+      const URI = await MLTToken.rootURIs(rootURIsIndex);
+      rootURIsIndex++;
+      const URI_IPFS = 'https://cloudflare-ipfs.com/ipfs/';
+      rootURIs.push(URI.replace('ipfs://', URI_IPFS));
+
+      // delay 2s
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    } catch(error) {
+      foundRootURIsFlag = true;
+    }
+  }
+
+  console.log('rootURIs', rootURIs);
+
+  for(const uri of rootURIs) {
+    const response = await axios.get(uri, {
+      maxBodyLength: 524288000,
+      maxContentLength: 524288000,
+    });
+    const data = response.data as ScheduleBatch;
+
+    // delay 2s
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    scheduleBatch.push(data);
+  }
+
+  console.log('scheduleBatch', scheduleBatch.length);
+
+  for(const { root, vestingSchedules, treasuryAllocationProof = [] } of scheduleBatch) {
+    console.log(/* Line break for better readability of messages */);
+    const batches: IMLTToken.VestingDataStruct[][] = [];
+    let remainerBatches: IMLTToken.VestingDataStruct[][] = [];
+    const gasPrice = await ethers.provider.getGasPrice();
+    const gasPriceInETH = formatEther(gasPrice);
+    const gasPriceInGwei = formatUnits(gasPrice, 'gwei');
+
+    console.log(/* Line break for better readability of messages */);
+    const LENGTH = vestingSchedules.length;
+    for(let i = 0; i < vestingSchedules.length; i += BATCH_SIZE) {
+      twirlTimer(`Preparing data for transactions ${i} of ${LENGTH}`);
+
+      if(i + BATCH_SIZE >= LENGTH) {
+        twirlTimer(`Preparing data for transactions ${LENGTH} of ${LENGTH}`);
+      }
+
+      const batch: IMLTToken.VestingDataStruct[] = [];
+
+      for(let j = i; j < i + BATCH_SIZE; j++) {
+        const { address, vestingCliff, amount, proof } = vestingSchedules[j];
+        batch.push({
+          amount: BigNumber.from(amount),
+          beneficiary: address,
+          cliff: vestingCliff,
+          proof: JSON.parse(proof),
+        })
+      }
+
+      batches.push(batch);
+      remainerBatches.push(batch);
+    }
+
+    console.log('\r'); // Carriage return for better readability of messages
+
+    console.log(/* Line break for better readability of messages */);
+    while(remainerBatches.length > 0) {
+      const user = remainerBatches.splice(0, 1)[0];
+      twirlTimer(`${batches.length - remainerBatches.length} of ${batches.length} batch released`);
+
+      try {
+        const tx = await MLTToken.batchReleaseVested(user, root, {
+          gasLimit: GAS_LIMIT
+        });
+        await tx.wait();
+
+      } catch(error) {
+        console.log(error);
+        remainerBatches.push(user);
+      }
+    }
+
+    console.log('\r'); // Line break for better readability of messages
+    console.log(`\n${MSG_GREEN('✔')} Successful vesting release 🥳🎉`);
+  }
+})
 
 task('merkletree').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
   const { getNamedAccounts } = hre;
