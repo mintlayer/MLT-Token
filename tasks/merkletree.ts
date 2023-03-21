@@ -47,18 +47,18 @@ const MERKLETREE_RELEASE_DATES = 'MERKLETREE_RELEASE_DATES';
 
 task('releases').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
   const { getNamedAccounts, network, deployments, ethers } = hre;
-  const { deployer } = await getNamedAccounts() as Accounts;
+  // const { deployer } = await getNamedAccounts() as Accounts;
 
   if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid');
 
-  tree = new VestingTree({
-    users: VESTING_USERS,
-    allocations: ALLOCATIONS,
-    balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
-    vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
-    treasurers: TREASURERS,
-    ownerAddress: deployer
-  });
+  // tree = new VestingTree({
+  //   users: VESTING_USERS,
+  //   allocations: ALLOCATIONS,
+  //   balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
+  //   vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
+  //   treasurers: TREASURERS,
+  //   ownerAddress: deployer
+  // });
 
   if(network.name == 'hardhat') {
     await deployments.fixture(['MLTToken']);
