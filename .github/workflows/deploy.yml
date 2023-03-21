@@ -36,7 +36,7 @@ jobs:
         node ./.github/scripts/checkHeapSize.js
 
     - name: Run deploy
-      run: yarn deploy --network mumbai --tags MLTToken > deploy_mlt-token.log
+      run: yarn deploy --network mainnet --tags MLTToken > deploy_mlt-token.log
 
     - uses: stefanzweifel/git-auto-commit-action@v4
       with:

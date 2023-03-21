@@ -40,7 +40,7 @@ export const ALLOCATION_TOTAL_SUPPLY = 400_000_000;
 
 // Timestamp of vesting start as seconds since the Unix epoch
 export const VESTING_START_TIMESTAMP = IS_PRODUCTIVE
-  ? dayjs.utc('2023-03-21 00:00:00')
+  ? dayjs.utc('2023-03-21 08:00:00')
   : dayjs.utc('2023-03-21 00:00:00');
 
 if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid');
@@ -149,6 +149,17 @@ export const ALLOCATIONS: Allocations = {
 }
 
 export const NETWORKS: NetworksInfo = {
+  mainnet: {
+    name: 'Red principal de Ethereum',
+    blockExplorerUrl: 'https://etherscan.io',
+    rpcUrl: 'https://mainnet.infura.io/v3',
+    chainId: 1,
+    nativeCurrency: {
+      decimals: 18,
+      name: 'ETH',
+      symbol: 'ETH'
+    }
+  },
   fuji: {
     name: 'Avalanche Fuji Testnet',
     blockExplorerUrl: 'https://testnet.snowtrace.io',

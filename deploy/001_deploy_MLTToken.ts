@@ -49,10 +49,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const root = tree.getHexRoot();
 
-  if(!network.tags.local && !network.tags.staging) {
-    throw new Error('Before moving to productive environment run a double validation of the variables/settings and then remove this error');
-  }
-
   let URI_IPFS = '';
 
   if(!network.tags.local) {
@@ -78,6 +74,30 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
     console.log(`Gateway IPFS: ${URI_IPFS}`);
     console.log(`Gateway HTTP: https://gateway.ipfs.io/ipfs/${metadataCID}/${filenameIPFS}`);
+
+    console.log('');
+    console.log('PARAMETERS TO VERIFY THE CONTRACT');
+    console.log(JSON.stringify(
+      [
+        // string memory _name
+        'MLTToken',
+        // string memory _symbol
+        'ML',
+        // string memory _supply
+        ALLOCATION_TOTAL_SUPPLY,
+        // uriIPFS_ IPFS URI for the initial vesting tree data.
+        URI_IPFS,
+        // _vestingTreeRoot Vesting tree root hash.
+        root,
+        // _vestingStartTimestamp Timestamp of vesting start as seconds since the Unix epoch
+        startTimestamp,
+        // _proofSupply Proof of total supply
+        proofSupply,
+        treasurersArray, // treasurers_ Addresses of authorized treasurers
+      ],
+      null, 2
+    ));
+    console.log('');
   }
 
   await deploy('MLTToken', {
