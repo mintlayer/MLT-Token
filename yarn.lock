@@ -777,10 +777,10 @@
     tweetnacl "^1.0.3"
     tweetnacl-util "^0.15.1"
 
-"@mintlayer/vesting-tree@^1.1.1":
-  version "1.1.1"
-  resolved "https://npm.pkg.github.com/download/@mintlayer/vesting-tree/1.1.1/fa56a07228b32c779c903429230d6f767bbc2ea8#fa56a07228b32c779c903429230d6f767bbc2ea8"
-  integrity sha512-Pnh4nU5GXWlIXhNpxZL5MB4ZhnmB5phRNC6iWbkd/4lk52kriVykKFpGi4fm+xFBkNJ9OF8ocmIRGE9qVsuyNA==
+"@mintlayer/vesting-tree@^1.1.6":
+  version "1.1.6"
+  resolved "https://npm.pkg.github.com/download/@mintlayer/vesting-tree/1.1.6/a43b2141ab32cd10b9005876f423fa34d26343e3#a43b2141ab32cd10b9005876f423fa34d26343e3"
+  integrity sha512-xxBfiuXIQSuj0otx3CJ/lfYfmvOUd/peAPhLpVUPfldIDVuuPDxrbb1s/Y0tU9ajmM6vS8Hxjr8uw20tEp7byA==
   dependencies:
     "@istanbuljs/nyc-config-typescript" "^1.0.2"
     "@tsconfig/node16" "^1.0.3"

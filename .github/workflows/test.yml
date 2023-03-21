@@ -1,0 +1,35 @@
+name: Test CI
+
+on:
+  push:
+    branches: [ test ]
+
+jobs:
+  build:
+
+    runs-on:
+      - self-hosted
+      - development
+
+    env:
+      NODE_OPTIONS: "--max-old-space-size=10240"
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
+      MUMBAI_ALCHEMY_API_KEY: ${{ secrets.MUMBAI_ALCHEMY_API_KEY }}
+      TREASURER_WALLET_PRIVKEY: ${{ secrets.TREASURER_WALLET_PRIVKEY }}
+      WALLET_PRIVKEY: ${{ secrets.WALLET_PRIVKEY }}
+      ETH_MAINNET_ALCHEMY_API_KEY: ${{ secrets.ETH_MAINNET_ALCHEMY_API_KEY }}
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-node@v3
+      with:
+        always-auth: true
+        node-version-file: .nvmrc
+        registry-url: https://npm.pkg.github.com
+        scope: '@mintlayer'
+
+    - name: Install dependencies
+      run: yarn --frozen-lockfile
+
+    - name: Run test
+      run: yarn coverage

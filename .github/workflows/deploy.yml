@@ -1,0 +1,53 @@
+name: Deploy CI
+
+on:
+  push:
+    branches: [ deploy ]
+
+jobs:
+  deploy:
+
+    runs-on:
+      - self-hosted
+      - production
+      # - ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+
+    env:
+      NODE_OPTIONS: "--max-old-space-size=10240"
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
+      MUMBAI_ALCHEMY_API_KEY: ${{ secrets.MUMBAI_ALCHEMY_API_KEY }}
+      TREASURER_WALLET_PRIVKEY: ${{ secrets.TREASURER_WALLET_PRIVKEY }}
+      WALLET_PRIVKEY: ${{ secrets.WALLET_PRIVKEY }}
+      ETH_MAINNET_ALCHEMY_API_KEY: ${{ secrets.ETH_MAINNET_ALCHEMY_API_KEY }}
+      WEB3STORAGE_TOKEN: ${{ secrets.WEB3STORAGE_TOKEN }}
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-node@v3
+      with:
+        always-auth: true
+        node-version-file: .nvmrc
+        registry-url: https://npm.pkg.github.com
+        scope: '@mintlayer'
+
+    - name: Install dependencies
+      run: |
+        yarn --frozen-lockfile
+        node ./.github/scripts/checkHeapSize.js
+
+    - name: Run deploy
+      run: yarn deploy --network mainnet --tags MLTToken > deploy_mlt-token.log
+
+    - uses: stefanzweifel/git-auto-commit-action@v4
+      with:
+        commit_message: Apply deploy changes (github-actions)
+        # file_pattern: 'deployments/*'
+
+    - name: "Run if changes have been detected"
+      if: steps.auto-commit-action.outputs.changes_detected == 'true'
+      run: echo "Changes!"
+
+    - name: "Run if no changes have been detected"
+      if: steps.auto-commit-action.outputs.changes_detected == 'false'
+      run: echo "No Changes!"
+

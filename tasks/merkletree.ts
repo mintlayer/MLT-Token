@@ -32,9 +32,9 @@ const MSG_GREEN = chalk.green;
 const MSG_YELLOW = chalk.yellow;
 
 /* types */
+import type { Accounts } from 'typescript/hardhat';
 import type { MLTToken as IMLTToken } from '../build/types';
 import type { HardhatRuntimeEnvironment } from "hardhat/types";
-import type { VestingScheduleWithProof } from '@mintlayer/vesting-tree/dist/types';
 
 let tree: VestingTree | undefined;
 
@@ -45,6 +45,9 @@ const SUBMIT_RELEASED_VESTING = 'SUBMIT_RELEASED_VESTING';
 const MERKLETREE_RELEASE_DATES = 'MERKLETREE_RELEASE_DATES';
 
 task('merkletree').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
+  const { getNamedAccounts } = hre;
+  const { deployer } = await getNamedAccounts() as Accounts;
+
   if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid');
 
   tree = new VestingTree({
@@ -53,6 +56,7 @@ task('merkletree').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
     balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
     vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
     treasurers: TREASURERS,
+    ownerAddress: deployer
   });
 
   const questions = await prompt({
@@ -541,13 +545,13 @@ subtask(MERKLETREE_EXPORT_DAPP)
       networkInfo,
       startTimestamp,
       endDateTimestamp,
-      vestingSchedules,
       allocationTotalSupply,
-      treasuryAllocationProof,
     } = await vestingTreeExportData({
       tree,
       network,
       MLTToken,
+      skipVestingSchedules: true,
+      skipTreasuryAllocationProof: true,
     })
 
     const lastBlockBeforeDeployment = await ethers.provider.getBlockNumber();
@@ -584,19 +588,13 @@ subtask(MERKLETREE_EXPORT_DAPP)
     data += `export const NETWORK_CURRENCY_SYMBOL = '${networkInfo.nativeCurrency.symbol}';\n\n`;
     data += `export const NETWORK_DECIMALS = '${networkInfo.nativeCurrency.decimals}';\n\n`;
     data += `export const NETWORK_EXPLORER_URL = '${networkInfo.blockExplorerUrl}';\n\n`;
-    data += `export const ALLOCATIONS = ${JSON.stringify(ALLOCATIONS, null, 2)};\n\n`;
 
     await fileDappHandle.writeFile(data, { encoding: 'utf-8' });
     await fileDappHandle?.close();
 
     data += `export const lastBlockBeforeDeployment = ${lastBlockBeforeDeployment};\n\n`;
+    data += `export const ALLOCATIONS = ${JSON.stringify(ALLOCATIONS, null, 2)};\n\n`;
     data += `export const TREASURERS = ${JSON.stringify(TREASURERS, null, 2)};\n\n`;
-    data += `// @ts-ignore\n`;
-    data += `export const TREASURY_ALLOCATION_PROOF = ${
-      JSON.stringify(treasuryAllocationProof, null, 2)
-    }`;
-    data += `// @ts-ignore\n`;
-    data += `export const VESTING_SCHEDULES = ${JSON.stringify(vestingSchedules, null, 2)}`;
 
     await fileApiHandle.writeFile(data, { encoding: 'utf-8' });
     await fileApiHandle?.close();

@@ -7,7 +7,7 @@ export interface NativeCurrency {
 export interface NetworkInfo {
   name: string;
   blockExplorerUrl: string;
-  rpcUrl: string;
+  rpcUrl?: string;
   chainId: number;
   nativeCurrency: NativeCurrency;
 }

@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { BigNumber, ContractTransaction } from 'ethers';
 import { randomHex } from 'web3-utils';
 import { parseEther } from 'ethers/lib/utils';
 import { VestingTree } from '@mintlayer/vesting-tree';
@@ -30,6 +30,9 @@ let tree: VestingTree | null = null;
 async function setup() {
   await deployments.fixture(['MLTToken']);
 
+  const accounts = await getNamedAccounts() as Accounts;
+
+
   if(!tree) {
     if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid');
 
@@ -39,10 +42,9 @@ async function setup() {
       vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
       balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
       treasurers: TREASURERS,
+      ownerAddress: accounts.deployer
     });
   }
-
-  const accounts = await getNamedAccounts() as Accounts;
 
   const [ MLTToken ] = await Promise.all([
     ethers.getContract<IMLTToken>('MLTToken'),
@@ -131,13 +133,13 @@ describe('MLTToken contract', () => {
 
     let currentTimestamp = VESTING_TIMESTAMP.toNumber();
 
-    tree.vestingSchedules.forEach((vestingSchedule) => {
+    for(const vestingSchedule of tree.vestingSchedules) {
       const timestampTMP = VESTING_TIMESTAMP.add(vestingSchedule.vestingCliff).toNumber();
 
       if(currentTimestamp <= timestampTMP) {
         currentTimestamp = timestampTMP;
       }
-    })
+    }
 
     const blockNumber = await ethers.provider.getBlockNumber();
     const block = await ethers.provider.getBlock(blockNumber);
@@ -246,9 +248,11 @@ describe('MLTToken contract', () => {
       batches.push(users);
     }
 
-    const batchesPromises = batches.map((users) => {
-      return MLTToken.batchReleaseVested(users, root, { gasLimit: GAS_LIMIT });
-    })
+    const batchesPromises: Promise<ContractTransaction>[] = [];
+
+    for(const users of batches) {
+      batchesPromises.push(MLTToken.batchReleaseVested(users, root, { gasLimit: GAS_LIMIT }));
+    }
 
     await Promise.all(batchesPromises);
 
@@ -320,7 +324,7 @@ describe('MLTToken contract', () => {
      * file with the same address, you can set your own address and add the private key to the
      * TREASURER_WALLET_PRIVKEY variable in the .env file.
     */
-    const treasurerData1 = TREASURERS[2];
+    const treasurerData1 = TREASURERS[1];
     const { vestingType } = treasurerData1;
     const { unlocking, months, monthly, cliff, label } = vestingType;
 
@@ -1158,12 +1162,12 @@ describe('MLTToken contract', () => {
         {
           address: treasurer1,
           allocationsType: "seed",
-          weight: parseEther('0.5'),
+          amount: balance3.sub(parseEther('100')),
         },
         {
           address: "0xFB570607960C2fEC2FAAa324325036f91b44e5C9",
           allocationsType: "seed",
-          weight: parseEther('0.5'),
+          amount: parseEther('100'),
         },
       ];
 

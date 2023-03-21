@@ -102,6 +102,11 @@ const config: HardhatUserConfig = {
   },
   defaultNetwork: 'hardhat',
   networks: {
+    mainnet: {
+      loggingEnabled: false,
+      accounts: [ WALLET_PRIVKEY, TREASURER_WALLET_PRIVKEY ],
+      url: `https://eth-mainnet.g.alchemy.com/v2/${ETH_MAINNET_ALCHEMY_API_KEY}`,
+    },
     hardhat: {
       tags: ['local'],
       loggingEnabled: false,
