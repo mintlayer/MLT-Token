@@ -45,7 +45,7 @@ const MERKLETREE_EXPORT_DAPP = 'MERKLETREE_EXPORT_DAPP';
 const SUBMIT_RELEASED_VESTING = 'SUBMIT_RELEASED_VESTING';
 const MERKLETREE_RELEASE_DATES = 'MERKLETREE_RELEASE_DATES';
 
-task('releases').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
+task('releases_old').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
   const { getNamedAccounts, network, deployments, ethers } = hre;
   // const { deployer } = await getNamedAccounts() as Accounts;
 
@@ -178,6 +178,271 @@ task('releases').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
     console.log('\r'); // Line break for better readability of messages
     console.log(`\n${MSG_GREEN('✔')} Successful vesting release 🥳🎉`);
   }
+})
+
+task('releases').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
+  const { getNamedAccounts, network, deployments, ethers } = hre;
+  const { deployer } = await getNamedAccounts() as Accounts;
+
+  if(!VESTING_START_TIMESTAMP) throw new Error('VESTING_START_TIMESTAMP invalid');
+
+  tree = new VestingTree({
+    users: VESTING_USERS,
+    allocations: ALLOCATIONS,
+    balance: parseEther(ALLOCATION_TOTAL_SUPPLY.toString()),
+    vestingStartTimestamp: VESTING_START_TIMESTAMP.unix(),
+    treasurers: TREASURERS,
+    ownerAddress: deployer
+  });
+
+  if(network.name == 'hardhat') {
+    await deployments.fixture(['MLTToken']);
+  }
+
+  const MLTToken = await ethers.getContract<IMLTToken>('MLTToken');
+
+  const [ name, symbol, decimals ] = await Promise.all([
+    MLTToken.name(),
+    MLTToken.symbol(),
+    MLTToken.decimals(),
+  ]);
+
+  // const VESTING_START_TIMESTAMP = START_TIMESTAMP.toNumber();
+  const cache = await getMerkletreeCache({ cacheKey: MLTToken.address });
+
+  {
+    const TITLE = 'Contract information:';
+    const DIVIDER = [...Array(TITLE.length).keys()].map(el => '-').join('');
+
+    console.log(
+      `\n${DIVIDER}`,
+      `\n${MSG_BOLD(TITLE)}`,
+      `\n${DIVIDER}`,
+      `\nName: ${MSG_YELLOW(name)}`,
+      `\nSymbol: ${MSG_YELLOW(symbol)}`,
+      `\nDecimals: ${MSG_YELLOW(decimals)}`,
+      `\nAddress: ${MSG_YELLOW(MLTToken.address)}`,
+    );
+  }
+
+  console.log(MSG_GREEN(
+    `\nThe protocol will now validate which vested tokens are available to be released and`,
+    `\nhave not yet been claimed. This process may take a few minutes, please be patient and`,
+    `\ndo not close your terminal or the process will be canceled.`,
+  ));
+
+  const blockNumber = await ethers.provider.getBlockNumber();
+  const block = await ethers.provider.getBlock(blockNumber);
+  const gasLimit = GAS_LIMIT;
+
+  const vestingReadyToRelease: IMLTToken.VestingDataStruct[] = [];
+
+  // Filter the vesting that are already due to be claimed
+  const vestingAlreadyOnDate = tree.vestingSchedules.filter((vestingSchdule) => {
+    const { vestingCliff } = vestingSchdule;
+    const timestamp = (VESTING_START_TIMESTAMP.unix() + vestingCliff);
+    return block.timestamp > timestamp;
+  });
+
+  // Filter the vesting that have already been claimed
+  const ALREADY_CLAIMED_BATCH_SIZE = 500;
+  let remainer = deepCopy(vestingAlreadyOnDate);
+
+  console.log(/* Line break for better readability of messages */);
+  while(remainer.length > 0) {
+    const batch = remainer.splice(0, ALREADY_CLAIMED_BATCH_SIZE);
+    twirlTimer(`${remainer.length} remaining validations`);
+
+    const result = await Promise.allSettled(
+      batch.map(async (vestingSchedule, index) => {
+        if(!tree) throw new Error('tree invalid!');
+
+        try {
+          const hash = tree.hash(vestingSchedule);
+
+          if(cache.data.vestingClaimed[hash]) {
+            return { error: false, isClaimed: true, index, vestingSchedule };
+          }
+
+          const isClaimed = await MLTToken.vestingClaimed(tree.hash(vestingSchedule));
+
+          if(isClaimed) {
+            cache.data.vestingClaimed[hash] = isClaimed;
+          }
+
+          return { error: false, isClaimed, index, vestingSchedule };
+        } catch {
+          return { error: true, isClaimed: false, index, vestingSchedule };
+        }
+      })
+    );
+
+
+    result.forEach((item) => {
+      if(!tree) throw new Error('tree invalid!');
+
+      if(item.status == 'fulfilled') {
+        if(item.value.error) {
+          remainer.push(batch[item.value.index]);
+          return;
+        }
+
+        if(!item.value.isClaimed) {
+          const { vestingSchedule } = item.value;
+          const { address, amount, vestingCliff } = vestingSchedule;
+
+          vestingReadyToRelease.push({
+            beneficiary: address,
+            amount,
+            cliff: vestingCliff,
+            proof: tree.getHexProof(tree.hash(vestingSchedule))
+          });
+        }
+      }
+    })
+  }
+
+  await setMerkletreeCache({ cacheKey: MLTToken.address, cacheToUpdate: cache.data });
+
+  {
+    console.log('\r'); // Line break for better readability of messages
+    const TITLE = 'successful validation:';
+    const VESTED_TOKENS = vestingAlreadyOnDate.length - vestingReadyToRelease.length;
+    const msgs = [
+      `Vested tokens that already be claimed: ${MSG_YELLOW(vestingAlreadyOnDate.length)}`,
+      `Vested tokens that were already claimed: ${MSG_YELLOW(VESTED_TOKENS)}`,
+      `Vested tokens that will be released now: ${MSG_YELLOW(vestingReadyToRelease.length)}`,
+    ];
+
+    const DIVIDER = [...Array(TITLE.length).keys()].map(el => '-').join('');
+
+    console.log(
+      `\n${DIVIDER}`,
+      `\n${TITLE}`,
+      `\n${DIVIDER}`,
+      `\n${msgs.join('\n')}`,
+    )
+  }
+
+  const batches: IMLTToken.VestingDataStruct[][] = [];
+  const gasPrice = await ethers.provider.getGasPrice();
+  const gasPriceInETH = formatEther(gasPrice);
+  const gasPriceInGwei = formatUnits(gasPrice, 'gwei');
+
+  {
+    console.log(/* Line break for better readability of messages */);
+    const LENGTH = vestingReadyToRelease.length;
+    for(let i = 0; i < vestingReadyToRelease.length; i += BATCH_SIZE) {
+      twirlTimer(`Preparing data for transactions ${i} of ${LENGTH}`);
+
+      if(i + BATCH_SIZE >= LENGTH) {
+        twirlTimer(`Preparing data for transactions ${LENGTH} of ${LENGTH}`);
+      }
+
+      batches.push(vestingReadyToRelease.slice(i, i + BATCH_SIZE));
+    }
+  }
+
+  console.log('\r'); // Carriage return for better readability of messages
+
+  let estimateGasPerBatch: BigNumber;
+
+  if(batches.length) {
+    estimateGasPerBatch = await MLTToken.estimateGas.batchReleaseVested(
+      batches[0], tree.getHexRoot(), { gasLimit }
+    );
+
+  } else {
+    console.log(/* Line break for better readability of messages */);
+    console.log(MSG_BOLD('No vested tokens available to be claimed'));
+    return;
+  }
+
+  const estimateGasPerBatchInETH = formatEther(estimateGasPerBatch.mul(gasPrice));
+  const estimateGasBatches = estimateGasPerBatch.mul(gasPrice).mul(batches.length);
+
+  {
+    let ethPrice = -1;
+
+    try {
+      const prices = await fetchCoinGeckoPrices(['ethereum']);
+
+      if(prices.hasOwnProperty('ethereum')) {
+        ethPrice = prices['ethereum'];
+      }
+    } catch{}
+
+    const TITLE = 'Batch release details:';
+    const DIVIDER = [...Array(TITLE.length).keys()].map(el => '-').join('');
+
+    const msgs = [
+      `${DIVIDER}`,
+      `${MSG_BOLD(TITLE)}`,
+      `${DIVIDER}`,
+      `Gas limit: ${MSG_YELLOW(gasLimit)}`,
+      `Gas prices (Gwei): ≈ ${MSG_YELLOW(gasPriceInGwei)}`,
+      `Gas prices (ETH): ≈ ${MSG_YELLOW(gasPriceInETH)}`,
+    ];
+
+    if(ethPrice > 0) {
+      msgs.push(`Gas prices (USD): ≈ ${MSG_YELLOW(parseFloat(gasPriceInETH) * ethPrice)}`)
+    }
+
+    msgs.push(
+      `Batch size: ${MSG_YELLOW(BATCH_SIZE)}`,
+      `Vestings quantity: ${MSG_YELLOW(vestingReadyToRelease.length)}`,
+      `Estimated gas required per batch (ETH): ≈ ${MSG_YELLOW(estimateGasPerBatchInETH)}`,
+      )
+
+    if(ethPrice > 0) {
+      const price = parseFloat(estimateGasPerBatchInETH) * ethPrice
+        msgs.push(
+        `Estimated gas required per batch (USD): ≈ ${MSG_YELLOW(price)}`,
+      )
+    }
+
+    console.log(`\n${msgs.join('\n')}`);
+
+    console.log(
+      `\nThere are ${MSG_YELLOW(vestingReadyToRelease.length)} vested tokens available `+
+      `for release and will be released in ${MSG_YELLOW(batches.length)} batches of ` +
+      `${MSG_YELLOW(BATCH_SIZE)}`
+    );
+  }
+
+  const deployerBalance = await ethers.provider.getBalance(deployer);
+
+  if(deployerBalance.lte(estimateGasBatches)) {
+    console.log(MSG_RED('You do not have enough balance to perform this operation'));
+    return
+  }
+
+  console.log(MSG_GREEN(
+    `\nVesting will begin to be released. The process may take a few minutes, please be`,
+    `\npatient and do not close your terminal or the process will be suspended.`,
+  ));
+
+  {
+    let remainer = deepCopy(batches);
+
+    console.log(/* Line break for better readability of messages */);
+    while(remainer.length > 0) {
+      const user = remainer.splice(0, 1)[0];
+      twirlTimer(`${batches.length - remainer.length} of ${batches.length} batch released`);
+
+      try {
+        const tx = await MLTToken.batchReleaseVested(user, tree.getHexRoot(), { gasLimit });
+        await tx.wait();
+
+      } catch(error) {
+        console.log(error);
+        remainer.push(user);
+      }
+    }
+  }
+
+  console.log('\r'); // Line break for better readability of messages
+  console.log(`\n${MSG_GREEN('✔')} Successful vesting release 🥳🎉`);
 })
 
 task('merkletree').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
