@@ -152,7 +152,7 @@ export const NETWORKS: NetworksInfo = {
   mainnet: {
     name: 'Red principal de Ethereum',
     blockExplorerUrl: 'https://etherscan.io',
-    rpcUrl: 'https://mainnet.infura.io/v3',
+    rpcUrl: '',
     chainId: 1,
     nativeCurrency: {
       decimals: 18,
