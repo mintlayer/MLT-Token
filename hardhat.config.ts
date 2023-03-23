@@ -23,6 +23,7 @@ import {
   MUMBAI_ALCHEMY_API_KEY,
   TREASURER_WALLET_PRIVKEY,
   ETHERSCAN_MUMBAI_API_KEY,
+  ETHERSCAN_MAINNET_API_KEY,
   ETH_MAINNET_ALCHEMY_API_KEY,
 } from './constants';
 
@@ -154,6 +155,7 @@ const config: HardhatUserConfig = {
       ftmTestnet: ETHERSCAN_FTM_API_KEY,
       avalancheFujiTestnet: ETHERSCAN_FUJI_API_KEY,
       polygonMumbai: ETHERSCAN_MUMBAI_API_KEY,
+      mainnet: ETHERSCAN_MAINNET_API_KEY
     }
   },
   gasReporter: {

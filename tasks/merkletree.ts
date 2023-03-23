@@ -582,7 +582,9 @@ subtask(MERKLETREE_EXPORT_DAPP)
     data += `export const VESTING_TREE_ROOT = '${root}';\n\n`;
     data += `export const BATCH_SIZE = ${BATCH_SIZE};\n\n`;
     data += `export const NETWORK_CHAIN_ID = ${networkInfo.chainId};\n\n`;
-    data += `export const NETWORK_URL_RPC = '${networkInfo.rpcUrl}';\n\n`;
+    data += `export const NETWORK_URL_RPC = ${
+      networkInfo.rpcUrl ? `'${networkInfo.rpcUrl}'` : "process.env.NETWORK_URL_RPC || ''"
+    };\n\n`;
     data += `export const NETWORK_NAME = '${networkInfo.name}';\n\n`;
     data += `export const NETWORK_CURRENCY_NAME = '${networkInfo.nativeCurrency.name}';\n\n`;
     data += `export const NETWORK_CURRENCY_SYMBOL = '${networkInfo.nativeCurrency.symbol}';\n\n`;
