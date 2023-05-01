@@ -554,7 +554,8 @@ subtask(MERKLETREE_EXPORT_DAPP)
       skipTreasuryAllocationProof: true,
     })
 
-    const lastBlockBeforeDeployment = await ethers.provider.getBlockNumber();
+    const deploymentMLTToken = await deployments.get('MLTToken');
+    const lastBlockBeforeDeployment = deploymentMLTToken.receipt?.blockNumber || 3474346;
 
     const FILENAME_API = 'vesting_data_api';
     const FILENAME_DAPP = 'vesting_data_dapp';

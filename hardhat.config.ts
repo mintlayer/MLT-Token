@@ -55,6 +55,15 @@ const config: HardhatUserConfig = {
         },
       },
       {
+        version: '0.8.1',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 10000,
+          },
+        },
+      },
+      {
         version: '0.8.0',
         settings: {
           optimizer: {
@@ -121,9 +130,9 @@ const config: HardhatUserConfig = {
           balance: '100000000000000000000000',
         },
       ],
-      forking: {
-        url: `https://eth-mainnet.alchemyapi.io/v2/${ETH_MAINNET_ALCHEMY_API_KEY}`,
-      }
+      // forking: {
+      //   url: `https://eth-mainnet.alchemyapi.io/v2/${ETH_MAINNET_ALCHEMY_API_KEY}`,
+      // }
     },
     fuji: {
       chainId: 43113,
