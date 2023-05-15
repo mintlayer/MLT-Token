@@ -71,8 +71,11 @@ Since we have everything ready, we press the "DEPLOY" button. After that we will
 Since we have deployed the staking contract, the first thing we need to do is set the amount of tokens dedicated to the pool. 
 
 In the token contract (the one you deployed first) call the `increaseAllowance` function.
+
 It receives two parameters:
+
 a. first parameter is the address of the second contract, which is the staking contract
+
 b. The second parameter is the amount that you are going to designate as rewards, plus the amount that you are going to stake. For example, if you are going to designate 600,000 tokens as a reward, and you are going to stake 10,00 tokens, then you have to pass 610,000 as that second parameter.
 
 IMPORTANT NOTE: Keep in mind that each time you call the updateRewardToDistribute or stake functions in the MLStaking.sol contract, you must FIRST approve those tokens by calling the increaseAllowance function of the token contract.
