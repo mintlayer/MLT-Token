@@ -52,11 +52,12 @@ Once the file is created, you must paste the contract code into the created file
 
 ```solidity
 /*****************************
-  * 2. CONSTANTS AND VARIABLES *
-  ******************************/
-  uint256 constant REWARD_PER_BLOCK = 12.21697345e18;
-  /// @dev Address of the token to partially pay rewards.
-  IERC20 constant STAKING_TOKEN = IERC20(0x281E2Cc83bD4A9930903AAa0a8cd1B521c1eB562); <= change
+* 2. CONSTANTS AND VARIABLES *
+******************************/
+uint128[] private _enabledMonths = [ 0, 1, 2, 3, 4, 5, 6 ];
+
+/// @dev Address of the token to partially pay rewards.
+IERC20 constant STAKING_TOKEN = IERC20(0x281E2Cc83bD4A9930903AAa0a8cd1B521c1eB562);
 ```
 
 The complete code to be pasted into the `MLStake.sol` file can be found in this repository under the following path `contracts/MLStaking.sol`
@@ -75,31 +76,12 @@ b. The second parameter is the amount that you are going to designate as rewards
 
 IMPORTANT NOTE: Keep in mind that each time you call the updateRewardToDistribute or stake functions in the MLStaking.sol contract, you must FIRST approve those tokens by calling the increaseAllowance function of the token contract.
 
+Next, we can use the stake function to stake some token and start receiving rewards.
 
+The stake function receives two parameters:
+1. amount_ which is the number of tokens to be staked
+2. lockMonths_ which is an integer between 0 and 6 to determine the number of months to lock the tokens
 
-After that we can use the `stake` function to stake some token and start receiving rewards.
+If you want to stake without a lock, you must pass the lockMonths_ parameter as zero.
 
 After some time passed we can unstake and withdraw the rewards by calling the `getReward` function.
-
-
-
-You cannot yet stake ML tokens in the pool with a locking period (example: 1 month) because this feature is still in development.
-
-
-
-
-
-
-
-IMPORTANT QUESTIONS:
-
-1. Do we want:
-a. only one pool of tokens for all rewards
-or
-b. do we want one pool for normal staking, another for one-month-locking staking, another for six-month-locking staking, and so?
-
-
-2. You said:
-a. Pool duration = 6 months. Are we ready with this?
-b. Locking periods: 1,2,3 4,6 months. 
-What is the difference between points 2.a and 2.b ?
