@@ -40,7 +40,7 @@ Then we proceed to compile and deploy that token. First we will go to the compil
 Once the compilation error is solved, we proceed to deploy. Reference capture follows:
 ![solidity compiler](./assets/solidity_compiler.png)
 
-Once we are in the deploy section we must select an environment and a web3 provider so we select to connect our Metamask wallet, it would be the option that says "Injected Provider - MetaMask" with which we want to perform the test, make sure you are in the Mumbai testnet and also having selected the correct contract to deploy. attached capture:
+Once we are in the deploy section we must select an environment and a web3 provider so we select to connect our Metamask wallet. This will be the option that says "Injected Provider - MetaMask" with which we want to perform the test. Make sure you are in the Mumbai testnet, and also having selected the correct contract to deploy. Reference capture follows:
 ![conect wallet](./assets/conect_wallet.png)
 
 Since we have everything ready, we press the "DEPLOY" button. After that we will be asked to confirm the transaction, and after a few seconds it should be deployed. Now we will be able to see on that same screen one more section that will allow us to interact with the recently deployed contract, as well as copy the address of the contract (save it because we will need it in the next step). As we were the ones that deployed the contract, we will own all the tokens, to be able to use them in the staking contract.
@@ -50,7 +50,7 @@ Since we have everything ready, we press the "DEPLOY" button. After that we will
 
 The process in this case will be similar to the previous one, you have to create a new file, we can name the file something like "MLStaking", remember that the extension must be .sol `MLStaking.sol`
 
-Once the file is created, you must paste the contract code into the recently created file. After pasting the code, you must modify the constant where the reward contract address is defined, and paste the address of the token that was deployed in the previous step, the place where you should make the replacement looks like this code snippet:
+Once the file is created, you must paste the contract code into the recently created file. After pasting the code, you must modify the constant where the reward contract address is defined, and paste the address of the token that was deployed in the previous step. The place where you should make the replacement looks like this code snippet:
 
 ```solidity
 /*****************************
@@ -70,7 +70,10 @@ Since we have everything ready, we press the "DEPLOY" button. After that we will
 
 Since we have deployed the staking contract, the first thing we need to do is set the amount of tokens dedicated to the pool. 
 
-In the token contract (the one you deployed first) call the `increaseAllowance` function. It receives two parameters: a. first parameter is the address of the second contract, which is the staking contract b. The second parameter is the amount that you are going to designate as rewards, plus the amount that you are going to stake. For example, if you are going to designate 600,000 tokens as a reward, and you are going to stake 10,00 tokens, then you have to pass 610,000 as that second parameter.
+In the token contract (the one you deployed first) call the `increaseAllowance` function.
+It receives two parameters:
+a. first parameter is the address of the second contract, which is the staking contract
+b. The second parameter is the amount that you are going to designate as rewards, plus the amount that you are going to stake. For example, if you are going to designate 600,000 tokens as a reward, and you are going to stake 10,00 tokens, then you have to pass 610,000 as that second parameter.
 
 IMPORTANT NOTE: Keep in mind that each time you call the updateRewardToDistribute or stake functions in the MLStaking.sol contract, you must FIRST approve those tokens by calling the increaseAllowance function of the token contract.
 
