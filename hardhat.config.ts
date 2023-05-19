@@ -16,6 +16,9 @@ import {
   TYPECHAIN_ON,
   IS_PRODUCTIVE,
   WALLET_PRIVKEY,
+  USER1_PRIVKEY,
+  USER2_PRIVKEY,
+  USER3_PRIVKEY,
   ETHERSCAN_API_KEY,
   COINMARKETCAP_API,
   ETHERSCAN_FTM_API_KEY,
@@ -127,6 +130,18 @@ const config: HardhatUserConfig = {
         },
         {
           privateKey: TREASURER_WALLET_PRIVKEY,
+          balance: '100000000000000000000000',
+        },
+        {
+          privateKey: USER1_PRIVKEY,
+          balance: '100000000000000000000000',
+        },
+        {
+          privateKey: USER2_PRIVKEY,
+          balance: '100000000000000000000000',
+        },
+        {
+          privateKey: USER3_PRIVKEY,
           balance: '100000000000000000000000',
         },
       ],

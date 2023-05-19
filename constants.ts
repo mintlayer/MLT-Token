@@ -20,6 +20,9 @@ import type {
 export const {
   REPORT_GAS,
   TYPECHAIN_ON,
+  USER1_PRIVKEY = '',
+  USER2_PRIVKEY = '',
+  USER3_PRIVKEY = '',
   WALLET_PRIVKEY = '',
   ETHERSCAN_API_KEY,
   COINMARKETCAP_API,
