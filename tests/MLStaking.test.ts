@@ -1,6 +1,6 @@
 import { formatEther, parseEther } from 'ethers/lib/utils';
-import { mine } from '@nomicfoundation/hardhat-network-helpers';
 import { deployments, ethers, getNamedAccounts } from 'hardhat';
+import { mine, time } from '@nomicfoundation/hardhat-network-helpers';
 
 import { setupUser } from '../helpers/ethers';
 import { assert, expect } from './utils/chaiSetup';
@@ -79,7 +79,7 @@ async function stake(params: StakeParams) {
     totalStakedLockSumBefore,
     balanceStakedLockBefore,
   ] = await Promise.all([
-    MLStaking.totalStakedSum(),
+    MLStaking.totalSumStaked(),
     MLStaking.balanceStakedOf(userAddress),
     MLStaking.totalStakedLockSum(lockMonths),
     MLStaking.balanceStakedLockOf(userAddress, lockMonths),
@@ -100,30 +100,30 @@ async function stake(params: StakeParams) {
   ).to.be.emit(MLStaking, 'Staked');
 
   const [
-    totalStakedSum,
+    totalSumStaked,
     balanceStaked,
     totalStakedLockSum,
     balanceStakedLock,
   ] = await Promise.all([
-    MLStaking.totalStakedSum(),
+    MLStaking.totalSumStaked(),
     MLStaking.balanceStakedOf(userAddress),
     MLStaking.totalStakedLockSum(lockMonths),
     MLStaking.balanceStakedLockOf(userAddress, lockMonths),
   ]);
 
   expect(balanceStaked).to.be.equal(balanceStakedBefore.add(stakeAmountBn));
-  expect(totalStakedSum).to.be.equal(totalStakedSumBefore.add(stakeAmountBn));
+  expect(totalSumStaked).to.be.equal(totalStakedSumBefore.add(stakeAmountBn));
   expect(balanceStakedLock).to.be.equal(balanceStakedLockBefore.add(stakeAmountBn));
   expect(totalStakedLockSum).to.be.equal(totalStakedLockSumBefore.add(stakeAmountBn));
 }
 
-interface UnstakedParams extends Contracts {
+interface UnstakedByLockParams extends Contracts {
   amount: number;
   lockMonths?: number;
   userAddress: string;
 }
 
-async function unstaked(params: UnstakedParams) {
+async function unstakedByLock(params: UnstakedByLockParams) {
   const { MLStaking, userAddress, amount, lockMonths = 0 } = params;
 
   const [
@@ -132,7 +132,7 @@ async function unstaked(params: UnstakedParams) {
     totalStakedLockSumBefore,
     balanceStakedLockBefore,
   ] = await Promise.all([
-    MLStaking.totalStakedSum(),
+    MLStaking.totalSumStaked(),
     MLStaking.balanceStakedOf(userAddress),
     MLStaking.totalStakedLockSum(lockMonths),
     MLStaking.balanceStakedLockOf(userAddress, lockMonths),
@@ -147,21 +147,44 @@ async function unstaked(params: UnstakedParams) {
   ).to.be.emit(MLStaking, 'Unstaked');
 
   const [
-    totalStakedSum,
+    totalSumStaked,
     balanceStaked,
     totalStakedLockSum,
     balanceStakedLock,
   ] = await Promise.all([
-    MLStaking.totalStakedSum(),
+    MLStaking.totalSumStaked(),
     MLStaking.balanceStakedOf(userAddress),
     MLStaking.totalStakedLockSum(lockMonths),
     MLStaking.balanceStakedLockOf(userAddress, lockMonths),
   ]);
 
   expect(balanceStaked).to.be.equal(balanceStakedBefore.sub(unstakedAmount));
-  expect(totalStakedSum).to.be.equal(totalStakedSumBefore.sub(unstakedAmount));
+  expect(totalSumStaked).to.be.equal(totalStakedSumBefore.sub(unstakedAmount));
   expect(balanceStakedLock).to.be.equal(balanceStakedLockBefore.sub(unstakedAmount));
   expect(totalStakedLockSum).to.be.equal(totalStakedLockSumBefore.sub(unstakedAmount));
+}
+
+interface UnstakedParams extends Contracts {
+  userAddress: string;
+}
+
+async function unstaked(params: UnstakedParams) {
+  const { MLStaking, userAddress } = params;
+
+  const [ totalStakedSumBefore, balanceStakedBefore ] = await Promise.all([
+    MLStaking.totalSumStaked(),
+    MLStaking.balanceStakedOf(userAddress),
+  ]);
+
+  await expect(MLStaking.unstaked()).to.be.emit(MLStaking, 'Unstaked');
+
+  const [ totalSumStaked, balanceStaked ] = await Promise.all([
+    MLStaking.totalSumStaked(),
+    MLStaking.balanceStakedOf(userAddress),
+  ]);
+
+  expect(balanceStaked).to.be.lt(balanceStakedBefore);
+  expect(totalSumStaked).to.be.lt(totalStakedSumBefore);
 }
 
 interface GetRewardParams extends Contracts {
@@ -173,30 +196,27 @@ async function getReward(params: GetRewardParams) {
   const { MLStaking, USDC, userAddress, evaluateRewardPaid = false } = params;
 
   const balanceBefore = await USDC.balanceOf(userAddress);
-  const balanceRewardBefore = await MLStaking.balanceOf(userAddress);
 
   if(evaluateRewardPaid) {
-    await expect(MLStaking.getReward()).to.be.emit(MLStaking, 'RewardPaid');
+    await expect(MLStaking.getReward(false)).to.be.emit(MLStaking, 'RewardPaid');
   }
 
   await mine(10);
 
   if(evaluateRewardPaid) {
-    await expect(MLStaking.getReward()).to.be.emit(MLStaking, 'Transfer');
+    await expect(MLStaking.getReward(false)).to.not.emit(MLStaking, 'Transfer');
   }
 
   await mine(10);
 
   if(evaluateRewardPaid) {
-    await expect(MLStaking.getReward()).to.emit(USDC, 'Transfer');
+    await expect(MLStaking.getReward(false)).to.emit(USDC, 'Transfer');
   }
 
   const balance = await USDC.balanceOf(userAddress);
-  const balanceReward = await MLStaking.balanceOf(userAddress);
 
   if(evaluateRewardPaid) {
     expect(balance).to.be.gt(balanceBefore);
-    expect(balanceReward).to.be.gt(balanceRewardBefore);
   }
 
 }
@@ -213,14 +233,36 @@ describe('MLStaking contract', () => {
     await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 600_000 });
   })
 
+  it('Should be able to withdraw unclaimed rewards', async () => {
+    const { contracts: { MLStaking, USDC }} = await setup();
+
+    await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 600_000 });
+
+    const newRewardPerBlock = parseEther('100');
+    await MLStaking.updateRewardPerBlock(newRewardPerBlock);
+
+    const rewardPerBlock = await MLStaking.rewardPerBlock();
+
+    expect(rewardPerBlock).to.be.equal(newRewardPerBlock);
+
+    const finishingBlockNumber = await MLStaking.finishingBlockNumber();
+
+    await expect(MLStaking.withdrawUnclaimedRewards()).to.not.emit(USDC, 'Transfer');
+    await expect(MLStaking.withdrawUnclaimedRewards()).to.not.emit(MLStaking, 'Transfer');
+
+    await mine(finishingBlockNumber.toNumber() + 500);
+
+    await expect(MLStaking.withdrawUnclaimedRewards()).to.emit(USDC, 'Transfer');
+  })
+
   it('You should be able to stake tokens, claim rewards and withdraw', async () => {
     const { accounts, contracts: { MLStaking, USDC } } = await setup();
 
     const userAddress = accounts.deployer;
 
-    await expect(MLStaking.getReward()).to.not.emit(USDC, 'Transfer');
-    await expect(MLStaking.getReward()).to.not.emit(MLStaking, 'Transfer');
-    await expect(MLStaking.getReward()).to.not.emit(MLStaking, 'RewardPaid');
+    await expect(MLStaking.getReward(false)).to.not.emit(USDC, 'Transfer');
+    await expect(MLStaking.getReward(false)).to.not.emit(MLStaking, 'Transfer');
+    await expect(MLStaking.getReward(false)).to.not.emit(MLStaking, 'RewardPaid');
 
     await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 600_000 });
 
@@ -236,7 +278,7 @@ describe('MLStaking contract', () => {
 
     await mine(200);
 
-    await unstaked({ MLStaking, USDC, userAddress, amount: 100, lockMonths: 0 });
+    await unstakedByLock({ MLStaking, USDC, userAddress, amount: 100, lockMonths: 0 });
 
     await mine(200);
 
@@ -259,9 +301,9 @@ describe('MLStaking contract', () => {
 
       const lockMonths = 1;
 
-      await expect(MLStaking.getReward()).to.not.emit(USDC, 'Transfer');
-      await expect(MLStaking.getReward()).to.not.emit(MLStaking, 'Transfer');
-      await expect(MLStaking.getReward()).to.not.emit(MLStaking, 'RewardPaid');
+      await expect(MLStaking.getReward(false)).to.not.emit(USDC, 'Transfer');
+      await expect(MLStaking.getReward(false)).to.not.emit(MLStaking, 'Transfer');
+      await expect(MLStaking.getReward(false)).to.not.emit(MLStaking, 'RewardPaid');
 
       await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 600_000 });
 
@@ -277,7 +319,7 @@ describe('MLStaking contract', () => {
 
       await mine(20000000000);
 
-      await unstaked({ MLStaking, USDC, userAddress, amount: 100, lockMonths });
+      await unstakedByLock({ MLStaking, USDC, userAddress, amount: 100, lockMonths });
 
       await mine(200);
 
@@ -313,7 +355,8 @@ describe('MLStaking contract', () => {
 
     await mine(5);
 
-    expect(await MLStaking.earned(user1)).to.be.equal(parseEther('50'));
+    expect(await MLStaking.earnedToken1(user1)).to.be.equal(parseEther('50'));
+    expect(await MLStaking.earnedToken2(user1)).to.be.equal(parseEther('0.05'));
 
     await stake({
       stakeAmount: 90,
@@ -324,8 +367,23 @@ describe('MLStaking contract', () => {
 
     await mine(15);
 
-    expect(await MLStaking.earned(user1)).to.be.equal(parseEther('105'));
-    expect(await MLStaking.earned(user2)).to.be.equal(parseEther('135'));
+    const [
+      earnedToken1User1,
+      earnedToken2User1,
+      earnedToken1User2,
+      earnedToken2User2,
+    ] = await Promise.all([
+      MLStaking.earnedToken1(user1),
+      MLStaking.earnedToken2(user1),
+      MLStaking.earnedToken1(user2),
+      MLStaking.earnedToken2(user2),
+    ]);
+
+    expect(earnedToken1User1).to.be.equal(parseEther('105'));
+    expect(earnedToken2User1).to.be.equal(parseEther('0.15'));
+
+    expect(earnedToken1User2).to.be.equal(parseEther('135'));
+    expect(earnedToken2User2).to.be.equal(parseEther('1.350000000000000000'));
   })
 
   it('2 users stake tokens at different times and with blocking', async () => {
@@ -351,7 +409,8 @@ describe('MLStaking contract', () => {
 
     await mine(5);
 
-    expect(await MLStaking.earned(user1)).to.be.equal(parseEther('50'));
+    expect(await MLStaking.earnedToken1(user1)).to.be.equal(parseEther('50'));
+    expect(await MLStaking.earnedToken2(user1)).to.be.equal(parseEther('0.05'));
 
     await stake({
       lockMonths: 2,
@@ -363,7 +422,36 @@ describe('MLStaking contract', () => {
 
     await mine(15);
 
-    expect(await MLStaking.earned(user1)).to.be.equal(parseEther('100.344827586206896550'));
-    expect(await MLStaking.earned(user2)).to.be.equal(parseEther('139.655172413793103425'));
+    const [
+      earnedToken1User1,
+      earnedToken2User1,
+      earnedToken1User2,
+      earnedToken2User2,
+    ] = await Promise.all([
+      MLStaking.earnedToken1(user1),
+      MLStaking.earnedToken2(user1),
+      MLStaking.earnedToken1(user2),
+      MLStaking.earnedLockToken2(user2, 2),
+    ]);
+
+    expect(earnedToken1User1).to.be.equal(parseEther('100.344827586206896550'));
+    expect(earnedToken2User1).to.be.equal(parseEther('0.15'));
+
+    expect(earnedToken1User2).to.be.equal(parseEther('139.655172413793103425'));
+    expect(earnedToken2User2).to.be.equal(parseEther('2.025000000000000000'));
+
+    await unstaked({
+      MLStaking: conectUser1.MLStaking,
+      USDC: conectUser1.USDC,
+      userAddress: user1
+    })
+
+    await conectUser1.MLStaking.unstaked();
+
+    const stakeData = await MLStaking.stakeDataOfByLock(user2, 2);
+
+    await time.increase(stakeData.unlockDate.toNumber() + 100);
+
+    await conectUser2.MLStaking.exit();
   })
 })

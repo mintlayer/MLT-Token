@@ -13,7 +13,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     from: deployer,
     args: [
       // string memory _name
-      'Testnet ML',
+      'Testnet TML',
       // string memory _symbol
       'TML',
     ],
