@@ -32,7 +32,9 @@ contract MLStaking is ERC20, Ownable, ReentrancyGuard {
 	struct StakeData {
 		uint256 amount;
 		uint256 amountVirtual;
-		uint256 unlockDate;
+		uint256[] amounts;
+		uint256[] unlockDates;
+		uint256[] amountsVirtual;
 		uint256 rewardToken1;
 		uint256 rewardToken2;
 	}
@@ -43,8 +45,8 @@ contract MLStaking is ERC20, Ownable, ReentrancyGuard {
 	uint256[] private _enabledMonths = [ 0, 1, 2, 3, 4, 5, 6 ];
 
 	/// @dev Address of the token to partially pay rewards.
-	IERC20 constant STAKING_TOKEN = IERC20(0x281E2Cc83bD4A9930903AAa0a8cd1B521c1eB562);
-	// IERC20 constant STAKING_TOKEN = IERC20(0x0C703e0cD79107354934F87743ff26B0d87B7905);
+	// IERC20 constant STAKING_TOKEN = IERC20(0x281E2Cc83bD4A9930903AAa0a8cd1B521c1eB562);
+	IERC20 constant STAKING_TOKEN = IERC20(0x0C703e0cD79107354934F87743ff26B0d87B7905);
 
 	/**
 	 * `finishingBlockNumber` will store the block number to determine until which block the
@@ -81,7 +83,7 @@ contract MLStaking is ERC20, Ownable, ReentrancyGuard {
 	 * @dev Total amount of tokens staked virtual. This is used to be able to calculate rewards
 	 * with a multiplier when a user locks their stake for N amount of months
 	**/
-	uint256 private _totalSumStakedVirtual;
+	uint256 public totalSumStakedVirtual;
 
 	/// @dev Amount of reward tokens that will be distributed for each token staked.
 	uint256 public rewardPerBlock;
@@ -128,25 +130,26 @@ contract MLStaking is ERC20, Ownable, ReentrancyGuard {
 	****************/
 	/**
 	 * @param account_ represents the current user interacting with the contract.
-	 * @param lockMonths_ represents the months that the stake will be locked.
 	**/
-	modifier updateRewardLock(address account_, uint256 lockMonths_) {
+	modifier updateRewardLock(address account_) {
 		rewardPerToken1Stored = rewardPerToken1();
 		uint256 rewardPerToken2Multiplier = getRewardPerToken2Multiplier();
 
 		lastUpdateBlockNumber = lastTimeRewardApplicable();
 
 		if(account_ != address(0)) {
-			_accountsWithStakeLocked[account_][lockMonths_].rewardToken1 = earnedLockToken1(
-				account_,
-				lockMonths_
-			);
+			for(uint256 i = 0; i < _enabledMonths.length; i++) {
+				_accountsWithStakeLocked[account_][_enabledMonths[i]].rewardToken1 =
+					earnedLockToken1(account_, i);
 
-			_accountsWithStakeLocked[account_][lockMonths_].rewardToken2 = rewardPerToken2Multiplier.mul(
-				_accountsWithStakeLocked[account_][lockMonths_].amount.add(
-					_accountsWithStakeLocked[account_][lockMonths_].amountVirtual
-				).div(tokenRewardDivider)
-			);
+				_accountsWithStakeLocked[account_][_enabledMonths[i]].rewardToken2 =
+					rewardPerToken2Multiplier.mul(
+						_accountsWithStakeLocked[account_][_enabledMonths[i]].amount.add(
+							_accountsWithStakeLocked[account_][_enabledMonths[i]].amountVirtual
+						).div(tokenRewardDivider)
+					);
+			}
+
 
 			userRewardPaidPerToken1[account_] = rewardPerToken1Stored;
 		}
@@ -188,7 +191,7 @@ contract MLStaking is ERC20, Ownable, ReentrancyGuard {
 
 		finishingBlockNumber = block.number.add(rewardTokenSum.div(rewardPerBlock));
 	}
-	
+
 	function updateTokenRewardDivider(uint256 divider_) external onlyOwner {
 		require(divider_ > 0, 'Divider cannot be 0');
 
@@ -197,7 +200,7 @@ contract MLStaking is ERC20, Ownable, ReentrancyGuard {
 
 	function updateRewardToDistribute(
 		uint256 amountReward_
-	) external updateRewardLock(address(0), 0) onlyOwner {
+	) external updateRewardLock(address(0)) onlyOwner {
 		require(amountReward_ > 0, 'Reward token amount cannot be 0');
 
 		STAKING_TOKEN.safeTransferFrom(msg.sender, address(this), amountReward_);
@@ -211,7 +214,7 @@ contract MLStaking is ERC20, Ownable, ReentrancyGuard {
 	 * @param amount_ Amount of tokens to be staked.
 	 * @param lockMonths_ lockdown months.
 	**/
-	function stake(uint256 amount_, uint256 lockMonths_) external {
+	function stake(uint256 amount_, uint256 lockMonths_) external nonReentrant {
 		_stake(amount_, lockMonths_);
 	}
 
@@ -220,14 +223,11 @@ contract MLStaking is ERC20, Ownable, ReentrancyGuard {
 	**/
 	function unstaked() external nonReentrant {
 		for(uint256 i = 0; i < _enabledMonths.length; i++) {
-			if(
-				_accountsWithStakeLocked[msg.sender][_enabledMonths[i]].amount > 0 &&
-				_accountsWithStakeLocked[msg.sender][_enabledMonths[i]].unlockDate < block.timestamp
-			) {
-				_unstakedLock(
-					_accountsWithStakeLocked[msg.sender][_enabledMonths[i]].amount,
-					_enabledMonths[i]
-				);
+			StakeData storage stakeData = _accountsWithStakeLocked[msg.sender][_enabledMonths[i]];
+			for(uint256 j = 0; j < stakeData.amounts.length; j++) {
+				if(stakeData.amounts[j] > 0 && stakeData.unlockDates[j] < block.timestamp) {
+					_unstakedLock(stakeData.amounts[j], _enabledMonths[i], j);
+				}
 			}
 		}
 	}
@@ -236,9 +236,14 @@ contract MLStaking is ERC20, Ownable, ReentrancyGuard {
 	 * @dev Withdraw staked tokens.
 	 * @param amount_ Amount of tokens to be withdrawn.
 	 * @param lockMonths_ lockdown months.
+	 * @param stakeDataIndex_ index to access data for a specific stake `amount` `unlockDate`.
 	**/
-	function unstakedLock(uint256 amount_, uint256 lockMonths_) external nonReentrant {
-		_unstakedLock(amount_, lockMonths_);
+	function unstakedLock(
+		uint256 amount_,
+		uint256 lockMonths_,
+		uint256 stakeDataIndex_
+	) external nonReentrant {
+		_unstakedLock(amount_, lockMonths_, stakeDataIndex_);
 	}
 
 	/// @dev Claim the accumulated rewards.
@@ -253,11 +258,12 @@ contract MLStaking is ERC20, Ownable, ReentrancyGuard {
 		for(uint256 i = 0; i < _enabledMonths.length; i++) {
 			_getRewardLock(_enabledMonths[i], false);
 
-			if(_accountsWithStakeLocked[msg.sender][_enabledMonths[i]].amount > 0) {
-				_unstakedLock(
-					_accountsWithStakeLocked[msg.sender][_enabledMonths[i]].amount,
-					_enabledMonths[i]
-				);
+			StakeData storage stakeData = _accountsWithStakeLocked[msg.sender][_enabledMonths[i]];
+
+			for(uint256 j = 0; j < stakeData.amounts.length; j++) {
+				if(stakeData.amounts[j] > 0 && stakeData.unlockDates[j] < block.timestamp) {
+					_unstakedLock(stakeData.amounts[j], _enabledMonths[i], j);
+				}
 			}
 		}
 	}
@@ -350,7 +356,7 @@ contract MLStaking is ERC20, Ownable, ReentrancyGuard {
 		return rewardPerToken1Stored.add(
 			lastTimeRewardApplicable()
 				.sub(lastUpdateBlockNumber).mul(rewardPerBlock).mul(1e18).div(
-					totalSumStaked.add(_totalSumStakedVirtual)
+					totalSumStaked.add(totalSumStakedVirtual)
 				)
 		);
 	}
@@ -397,15 +403,14 @@ contract MLStaking is ERC20, Ownable, ReentrancyGuard {
 	**/
 	function _stake(uint256 amount_, uint256 lockMonths_)
 		internal
-		nonReentrant
 		validBlockingMonth(lockMonths_)
-		updateRewardLock(msg.sender, lockMonths_)
+		updateRewardLock(msg.sender)
 	{
 		require(amount_ > 0, 'Cannot stake 0');
 
 		uint256 _amountVirtual = amount_.mul(calculateMultiplier(lockMonths_)).div(100).sub(amount_);
 
-		_totalSumStakedVirtual = _totalSumStakedVirtual.add(_amountVirtual);
+		totalSumStakedVirtual = totalSumStakedVirtual.add(_amountVirtual);
 
 		totalSumStaked = totalSumStaked.add(amount_);
 		_totalSumStakedByLock[lockMonths_] = _totalSumStakedByLock[lockMonths_].add(amount_);
@@ -418,7 +423,10 @@ contract MLStaking is ERC20, Ownable, ReentrancyGuard {
 
 		stakeData.amount += amount_;
 		stakeData.amountVirtual += _amountVirtual;
-		stakeData.unlockDate = block.timestamp.add(lockMonths_ * 30 days);
+
+		stakeData.amounts.push(amount_);
+		stakeData.amountsVirtual.push(_amountVirtual);
+		stakeData.unlockDates.push(block.timestamp.add(lockMonths_ * 30 days));
 
 		if(!_alreadyRegisteredStaker[msg.sender]) {
 			totalStakers += 1;
@@ -432,34 +440,33 @@ contract MLStaking is ERC20, Ownable, ReentrancyGuard {
 	function _getRewardLock(
 		uint256 lockMonths_,
 		bool compose_
-	) internal validBlockingMonth(lockMonths_) updateRewardLock(msg.sender, lockMonths_) {
-		uint256 _rewardToken1 = _accountsWithStakeLocked[msg.sender][lockMonths_].rewardToken1;
-		uint256 _rewardToken2 = _accountsWithStakeLocked[msg.sender][lockMonths_].rewardToken2;
+	) internal validBlockingMonth(lockMonths_) updateRewardLock(msg.sender) {
+		StakeData storage stakeData = _accountsWithStakeLocked[msg.sender][lockMonths_];
 
-		if(_accountsWithStakeLocked[msg.sender][lockMonths_].unlockDate < block.timestamp) {
-			if(_rewardToken2 > 0) {
-				_accountsWithStakeLocked[msg.sender][lockMonths_].rewardToken2 = 0;
+		uint256 _rewardToken1 = stakeData.rewardToken1;
+		uint256 _rewardToken2 = stakeData.rewardToken2;
 
-				sumAccumulatedRewardsToken2 += _rewardToken2;
-				accumulatedRewardsToken2[msg.sender] += _rewardToken2;
+		if(_rewardToken2 > 0) {
+			stakeData.rewardToken2 = 0;
+
+			sumAccumulatedRewardsToken2 += _rewardToken2;
+			accumulatedRewardsToken2[msg.sender] += _rewardToken2;
+		}
+
+		if(
+			_rewardToken1 > 0 &&
+			STAKING_TOKEN.balanceOf(address(this)).sub(totalSumStaked) >= _rewardToken1
+		) {
+			rewardTokenSum -= _rewardToken1;
+			rewardTokenClaimed += _rewardToken1;
+			stakeData.rewardToken1 -= _rewardToken1;
+			STAKING_TOKEN.safeTransfer(msg.sender, _rewardToken1);
+
+			if(compose_) {
+				_stake(_rewardToken1, 0);
 			}
 
-			if(
-				_rewardToken1 > 0 &&
-				STAKING_TOKEN.balanceOf(address(this)).sub(totalSumStaked) >= _rewardToken1
-			) {
-				_accountsWithStakeLocked[msg.sender][lockMonths_].rewardToken1 = 0;
-				rewardTokenSum = rewardTokenSum.sub(_rewardToken1);
-				rewardTokenClaimed += _rewardToken1;
-
-				if(compose_) {
-					_stake(_rewardToken1, 0);
-				} else {
-					STAKING_TOKEN.safeTransfer(msg.sender, _rewardToken1);
-				}
-
-				emit RewardPaid(msg.sender, _rewardToken1);
-			}
+			emit RewardPaid(msg.sender, _rewardToken1);
 		}
 	}
 
@@ -467,38 +474,45 @@ contract MLStaking is ERC20, Ownable, ReentrancyGuard {
 	 * @dev Withdraw staked tokens.
 	 * @param amount_ Amount of tokens to be withdrawn.
 	 * @param lockMonths_ lockdown months.
+	 * @param stakeDataIndex_ index to access data for a specific stake `amount` `unlockDate`.
 	**/
 	function _unstakedLock(
 		uint256 amount_,
-		uint256 lockMonths_
-	) internal validBlockingMonth(lockMonths_) updateRewardLock(msg.sender, lockMonths_) {
+		uint256 lockMonths_,
+		uint256 stakeDataIndex_
+	) internal validBlockingMonth(lockMonths_) updateRewardLock(msg.sender) {
 		require(amount_ > 0, 'Cannot withdraw 0');
 
-		require(
-			_accountsWithStakeLocked[msg.sender][lockMonths_].unlockDate < block.timestamp,
-			'The blocking time has not yet expired'
-		);
+		StakeData storage stakeData = _accountsWithStakeLocked[msg.sender][lockMonths_];
 
+		require(amount_ <= stakeData.amounts[stakeDataIndex_], 'insufficient balance');
 		require(
-			amount_ <= _accountsWithStakeLocked[msg.sender][lockMonths_].amount,
-			'the amount to be withdrawn is greater than that available'
+			stakeData.unlockDates[stakeDataIndex_] < block.timestamp,
+			'The blocking time has not yet expired'
 		);
 
 		uint256 _amountVirtual = amount_.mul(calculateMultiplier(lockMonths_)).div(100).sub(amount_);
 
-		_totalSumStakedVirtual = _totalSumStakedVirtual.sub(_amountVirtual);
+		totalSumStakedVirtual = totalSumStakedVirtual.sub(_amountVirtual);
 
 		totalSumStaked = totalSumStaked.sub(amount_);
 		_totalSumStakedByLock[lockMonths_] = _totalSumStakedByLock[lockMonths_].sub(amount_);
 
 		_balancesStaked[msg.sender] = _balancesStaked[msg.sender].sub(amount_);
 
-		_accountsWithStakeLocked[msg.sender][lockMonths_].amount -= amount_;
-		_accountsWithStakeLocked[msg.sender][lockMonths_].amountVirtual -= _amountVirtual;
+		stakeData.amount -= amount_;
+		stakeData.amountVirtual -= _amountVirtual;
+		stakeData.unlockDates[stakeDataIndex_] = 0;
+		stakeData.amounts[stakeDataIndex_] -= amount_;
+		stakeData.amountsVirtual[stakeDataIndex_] -= _amountVirtual;
 
 		if(_balancesStaked[msg.sender] == 0) {
 			totalStakers -= 1;
 			_alreadyRegisteredStaker[msg.sender] = false;
+
+			delete stakeData.amounts;
+			delete stakeData.unlockDates;
+			delete stakeData.amountsVirtual;
 		}
 
 		STAKING_TOKEN.safeTransfer(msg.sender, amount_);

@@ -121,10 +121,11 @@ interface UnstakedByLockParams extends Contracts {
   amount: number;
   lockMonths?: number;
   userAddress: string;
+  stakeDataIndex: number;
 }
 
 async function unstakedByLock(params: UnstakedByLockParams) {
-  const { MLStaking, userAddress, amount, lockMonths = 0 } = params;
+  const { MLStaking, userAddress, amount, stakeDataIndex, lockMonths = 0 } = params;
 
   const [
     totalStakedSumBefore,
@@ -138,12 +139,14 @@ async function unstakedByLock(params: UnstakedByLockParams) {
     MLStaking.balanceStakedLockOf(userAddress, lockMonths),
   ]);
 
-  await expect(MLStaking.unstakedLock(0, lockMonths)).to.revertedWith('Cannot withdraw 0');
+  await expect(
+    MLStaking.unstakedLock(0, lockMonths, stakeDataIndex)
+  ).to.revertedWith('Cannot withdraw 0');
 
   const unstakedAmount = parseEther(`${amount}`);
 
   await expect(
-    MLStaking.unstakedLock(unstakedAmount, lockMonths)
+    MLStaking.unstakedLock(unstakedAmount, lockMonths, stakeDataIndex)
   ).to.be.emit(MLStaking, 'Unstaked');
 
   const [
@@ -185,6 +188,22 @@ async function unstaked(params: UnstakedParams) {
 
   expect(balanceStaked).to.be.lt(balanceStakedBefore);
   expect(totalSumStaked).to.be.lt(totalStakedSumBefore);
+
+  for(let i = 0; i < 6; i++) {
+    const stakeData = await MLStaking.stakeDataOfByLock(userAddress, i);
+
+    const {
+      amount,
+      amountVirtual,
+      amounts,
+      unlockDates,
+    } = stakeData;
+
+    expect(amount).to.be.eq(0);
+    expect(amountVirtual).to.be.eq(0);
+    for(const amount of amounts) expect(amount).to.be.eq(0);
+    for(const unlockDate of unlockDates) expect(unlockDate).to.be.eq(0);
+  }
 }
 
 interface GetRewardParams extends Contracts {
@@ -278,7 +297,23 @@ describe('MLStaking contract', () => {
 
     await mine(200);
 
-    await unstakedByLock({ MLStaking, USDC, userAddress, amount: 100, lockMonths: 0 });
+    await unstakedByLock({
+      MLStaking,
+      USDC,
+      userAddress,
+      amount: 100,
+      lockMonths: 0,
+      stakeDataIndex: 0
+    });
+
+    await unstakedByLock({
+      MLStaking,
+      USDC,
+      userAddress,
+      amount: 100,
+      lockMonths: 0,
+      stakeDataIndex: 1
+    });
 
     await mine(200);
 
@@ -319,7 +354,23 @@ describe('MLStaking contract', () => {
 
       await mine(20000000000);
 
-      await unstakedByLock({ MLStaking, USDC, userAddress, amount: 100, lockMonths });
+      await unstakedByLock({
+        MLStaking,
+        USDC,
+        userAddress,
+        amount: 100,
+        lockMonths,
+        stakeDataIndex: 0
+      });
+
+      await unstakedByLock({
+        MLStaking,
+        USDC,
+        userAddress,
+        amount: 100,
+        lockMonths,
+        stakeDataIndex: 1
+      });
 
       await mine(200);
 
@@ -450,8 +501,79 @@ describe('MLStaking contract', () => {
 
     const stakeData = await MLStaking.stakeDataOfByLock(user2, 2);
 
-    await time.increase(stakeData.unlockDate.toNumber() + 100);
+    await time.increase(stakeData.unlockDates[0].toNumber() + 100);
 
     await conectUser2.MLStaking.exit();
   })
+
+  it('As a profiled user I can compound (claim and stake) my tokens', async () => {
+    const { accounts, contracts } = await setup();
+    const { user1 } = accounts;
+    const { MLStaking, USDC } = contracts;
+
+    await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 600_000 });
+    await MLStaking.updateRewardPerBlock(parseEther('10'));
+
+    const conectUser1 = await setupUser(user1, contracts);
+
+    await USDC.transfer(user1, parseEther('100'));
+
+    await stake({
+      stakeAmount: 100,
+      userAddress: user1,
+      USDC: conectUser1.USDC,
+      MLStaking: conectUser1.MLStaking,
+    });
+
+    await mine(5);
+
+    expect(await MLStaking.earnedToken1(user1)).to.be.equal(parseEther('50'));
+    expect(await MLStaking.earnedToken2(user1)).to.be.equal(parseEther('0.5'));
+
+    await mine(15);
+
+    await conectUser1.USDC.increaseAllowance(MLStaking.address, ethers.constants.MaxInt256);
+    await expect(conectUser1.MLStaking.getReward(true)).to.be.emit(MLStaking, 'Staked');
+  })
+
+  it(
+    'Ability to stake multiple times with lockup, while maintaining the release dates, ' +
+    'will be preserved.',
+    async () => {
+      const { accounts, contracts } = await setup();
+      const { user1 } = accounts;
+      const { MLStaking, USDC } = contracts;
+
+      await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 600_000 });
+      await MLStaking.updateRewardPerBlock(parseEther('10'));
+
+      const conectUser1 = await setupUser(user1, contracts);
+
+      await USDC.transfer(user1, parseEther('1000000'));
+
+      for(let i = 0; i < 100; i++) {
+        await stake({
+          lockMonths: 1,
+          stakeAmount: 10 + i,
+          userAddress: user1,
+          USDC: conectUser1.USDC,
+          MLStaking: conectUser1.MLStaking,
+        });
+        
+        await time.increase(60 * 60 * 24);
+      }
+
+      const stakeData = await conectUser1.MLStaking.stakeDataOfByLock(user1, 1);
+
+      await time.increase(
+        stakeData.unlockDates[stakeData.unlockDates.length - 1].toNumber() + 60 * 60 * 24 * 30
+      )
+      
+      await unstaked({
+        USDC: conectUser1.USDC,
+        MLStaking: conectUser1.MLStaking,
+        userAddress: user1,
+      })
+    }
+  )
 })
