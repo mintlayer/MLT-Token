@@ -1,9 +1,13 @@
+import dayjs from 'dayjs';
+import localizedFormat from 'dayjs/plugin/localizedFormat';
 import { formatEther, parseEther } from 'ethers/lib/utils';
 import { deployments, ethers, getNamedAccounts } from 'hardhat';
 import { mine, time } from '@nomicfoundation/hardhat-network-helpers';
 
 import { setupUser } from '../helpers/ethers';
 import { assert, expect } from './utils/chaiSetup';
+
+dayjs.extend(localizedFormat);
 
 /* types */
 import type { Accounts } from '../typescript/hardhat';
@@ -35,15 +39,33 @@ async function setup() {
 
 interface UpdateRewardToDistributeParams extends Contracts {
   rewardAmount: number;
+  duration?: number;
+  updateDuration?: boolean;
 }
 
 async function updateRewardToDistribute(params: UpdateRewardToDistributeParams) {
-  const { MLStaking, USDC, rewardAmount } = params;
+  const { MLStaking, USDC, rewardAmount, updateDuration = true, duration = 0 } = params;
 
   const rewardAmountBN = parseEther(`${rewardAmount}`);
 
   const rewardTokenSupplyBefore = await MLStaking.rewardTokenSum();
   const MLStakingBalanceBefore = await USDC.balanceOf(MLStaking.address);
+
+
+  if(updateDuration || duration) {
+    await expect(MLStaking.updateRewardToDistribute(0)).to.revertedWith('Duration = 0');
+    await expect(MLStaking.updateDuration(0)).to.revertedWith('Duration = 0');
+
+    let differenceInSeconds = duration;
+
+    if(!differenceInSeconds) {
+      const duration = dayjs().add(6, 'months');
+      differenceInSeconds = duration.diff(dayjs(), 'second');
+    }
+
+    await MLStaking.updateDuration(differenceInSeconds);
+  }
+
 
   await expect(MLStaking.updateRewardToDistribute(0))
     .to.revertedWith('Reward token amount cannot be 0');
@@ -66,10 +88,18 @@ interface StakeParams extends Contracts {
   userAddress: string;
   lockMonths?: number;
   stakeAmount?: number;
+  verifyAllowance?: boolean;
 }
 
 async function stake(params: StakeParams) {
-  const { MLStaking, USDC, userAddress, stakeAmount = 500, lockMonths = 0 } = params;
+  const {
+    MLStaking,
+    USDC,
+    userAddress,
+    stakeAmount = 500,
+    lockMonths = 0,
+    verifyAllowance = true,
+  } = params;
 
   const STAKE_AMOUNT = stakeAmount;
 
@@ -89,9 +119,12 @@ async function stake(params: StakeParams) {
 
   const stakeAmountBn = parseEther(`${STAKE_AMOUNT}`);
 
-  await expect(
-    MLStaking.stake(stakeAmountBn, lockMonths)
-  ).to.revertedWith('ERC20: insufficient allowance');
+  if(verifyAllowance) {
+    await expect(
+      MLStaking.stake(stakeAmountBn, lockMonths)
+    ).to.revertedWith('ERC20: insufficient allowance');
+  }
+
 
   await USDC.increaseAllowance(MLStaking.address, stakeAmountBn);
 
@@ -207,29 +240,30 @@ async function unstaked(params: UnstakedParams) {
 }
 
 interface GetRewardParams extends Contracts {
+  compose?: boolean;
   userAddress: string;
   evaluateRewardPaid?: boolean;
 }
 
 async function getReward(params: GetRewardParams) {
-  const { MLStaking, USDC, userAddress, evaluateRewardPaid = false } = params;
+  const { MLStaking, USDC, userAddress, evaluateRewardPaid = false, compose = false } = params;
 
   const balanceBefore = await USDC.balanceOf(userAddress);
 
   if(evaluateRewardPaid) {
-    await expect(MLStaking.getReward(false)).to.be.emit(MLStaking, 'RewardPaid');
+    await expect(MLStaking.getReward(compose)).to.be.emit(MLStaking, 'RewardPaid');
   }
 
   await mine(10);
 
   if(evaluateRewardPaid) {
-    await expect(MLStaking.getReward(false)).to.not.emit(MLStaking, 'Transfer');
+    await expect(MLStaking.getReward(compose)).to.not.emit(MLStaking, 'Transfer');
   }
 
   await mine(10);
 
   if(evaluateRewardPaid) {
-    await expect(MLStaking.getReward(false)).to.emit(USDC, 'Transfer');
+    await expect(MLStaking.getReward(compose)).to.emit(USDC, 'Transfer');
   }
 
   const balance = await USDC.balanceOf(userAddress);
@@ -252,24 +286,41 @@ describe('MLStaking contract', () => {
     await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 600_000 });
   })
 
+  it(
+      'The duration of the pool cannot be modified if the current period has not ended',
+      async () => {
+      const { contracts: { MLStaking, USDC }} = await setup();
+
+      await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 600_000 });
+
+      await expect(MLStaking.updateDuration(dayjs().add(1, 'months').unix()))
+        .to.be.revertedWith('reward duration not finished');
+
+      const currentDuration = await MLStaking.duration();
+
+      await time.increase(currentDuration.toNumber() + 60 * 60 * 24 * 30);
+
+      await MLStaking.updateDuration(dayjs().add(1, 'month').diff(dayjs(), 'seconds'));
+
+      const newDuration = await MLStaking.duration();
+
+      const diffInMonth = dayjs().add(newDuration.toNumber(), 'seconds').diff(dayjs(), 'month');
+
+      expect(diffInMonth).to.be.equal(1);
+    }
+  )
+
   it('Should be able to withdraw unclaimed rewards', async () => {
     const { contracts: { MLStaking, USDC }} = await setup();
 
     await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 600_000 });
 
-    const newRewardPerBlock = parseEther('100');
-    await MLStaking.updateRewardPerBlock(newRewardPerBlock);
-
-    const rewardPerBlock = await MLStaking.rewardPerBlock();
-
-    expect(rewardPerBlock).to.be.equal(newRewardPerBlock);
-
-    const finishingBlockNumber = await MLStaking.finishingBlockNumber();
-
     await expect(MLStaking.withdrawUnclaimedRewards()).to.not.emit(USDC, 'Transfer');
     await expect(MLStaking.withdrawUnclaimedRewards()).to.not.emit(MLStaking, 'Transfer');
 
-    await mine(finishingBlockNumber.toNumber() + 500);
+    const currentDuration = await MLStaking.duration();
+
+    await time.increase(currentDuration.toNumber() + 60 * 60 * 24 * 30);
 
     await expect(MLStaking.withdrawUnclaimedRewards()).to.emit(USDC, 'Transfer');
   })
@@ -285,17 +336,13 @@ describe('MLStaking contract', () => {
 
     await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 600_000 });
 
-    await mine(200);
+    await stake({ MLStaking, USDC, userAddress });
 
-    await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 100_000 });
+    await time.increase(1000);
 
     await stake({ MLStaking, USDC, userAddress });
 
-    await mine(200);
-
-    await stake({ MLStaking, USDC, userAddress });
-
-    await mine(200);
+    await time.increase(1000);
 
     await unstakedByLock({
       MLStaking,
@@ -315,17 +362,18 @@ describe('MLStaking contract', () => {
       stakeDataIndex: 1
     });
 
-    await mine(200);
+    await time.increase(1000);
 
     await getReward({ MLStaking, USDC, userAddress, evaluateRewardPaid: true });
 
     await stake({ MLStaking, USDC, userAddress });
     await stake({ MLStaking, USDC, userAddress });
 
-    await mine(200);
+    await time.increase(1000);
 
     await MLStaking.exit();
   })
+
 
   it(
     'You should be able to stake locked tokens for a month, claim rewards and withdraw',
@@ -342,17 +390,13 @@ describe('MLStaking contract', () => {
 
       await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 600_000 });
 
-      await mine(200);
+      await stake({ MLStaking, USDC, userAddress, lockMonths });
 
-      await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 100_000 });
+      await time.increase(1000);
 
       await stake({ MLStaking, USDC, userAddress, lockMonths });
 
-      await mine(200);
-
-      await stake({ MLStaking, USDC, userAddress, lockMonths });
-
-      await mine(20000000000);
+      await time.increase(dayjs().add(2, 'months').unix());
 
       await unstakedByLock({
         MLStaking,
@@ -372,7 +416,7 @@ describe('MLStaking contract', () => {
         stakeDataIndex: 1
       });
 
-      await mine(200);
+      await time.increase(1000);
 
       await getReward({ MLStaking, USDC, userAddress });
 
@@ -388,8 +432,21 @@ describe('MLStaking contract', () => {
     const { user1, user2 } = accounts;
     const { MLStaking, USDC } = contracts;
 
-    await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 600_000 });
-    await MLStaking.updateRewardPerBlock(parseEther('10'));
+    const duration = dayjs().add(6, 'months');
+    let differenceInSeconds = duration.diff(dayjs(), 'second');
+
+    if(differenceInSeconds % 2) {
+      differenceInSeconds += 1;
+    }
+
+    await updateRewardToDistribute({
+      MLStaking,
+      USDC,
+      duration: differenceInSeconds,
+      rewardAmount: 10 * differenceInSeconds,
+    });
+
+    const rewardRate = await MLStaking.rewardRate();
 
     const conectUser1 = await setupUser(user1, contracts);
     const conectUser2 = await setupUser(user2, contracts);
@@ -404,10 +461,14 @@ describe('MLStaking contract', () => {
       MLStaking: conectUser1.MLStaking,
     });
 
-    await mine(5);
+    await time.increase(5);
 
-    expect(await MLStaking.earnedToken1(user1)).to.be.equal(parseEther('50'));
-    expect(await MLStaking.earnedToken2(user1)).to.be.equal(parseEther('0.05'));
+    {
+      const earnedToken1 = await MLStaking.earnedToken1(user1);
+      const earnedToken2 = await MLStaking.earnedToken2(user1);
+      expect(earnedToken1).to.be.equal(parseEther('50'));
+      expect(earnedToken2).to.be.equal(parseEther('0.00025'));
+    }
 
     await stake({
       stakeAmount: 90,
@@ -416,7 +477,7 @@ describe('MLStaking contract', () => {
       MLStaking: conectUser2.MLStaking,
     });
 
-    await mine(15);
+    await time.increase(15);
 
     const [
       earnedToken1User1,
@@ -431,10 +492,10 @@ describe('MLStaking contract', () => {
     ]);
 
     expect(earnedToken1User1).to.be.equal(parseEther('105'));
-    expect(earnedToken2User1).to.be.equal(parseEther('0.15'));
+    expect(earnedToken2User1).to.be.equal(parseEther('0.00075'));
 
     expect(earnedToken1User2).to.be.equal(parseEther('135'));
-    expect(earnedToken2User2).to.be.equal(parseEther('1.350000000000000000'));
+    expect(earnedToken2User2).to.be.equal(parseEther('0.00675'));
   })
 
   it('2 users stake tokens at different times and with blocking', async () => {
@@ -442,8 +503,19 @@ describe('MLStaking contract', () => {
     const { user1, user2 } = accounts;
     const { MLStaking, USDC } = contracts;
 
-    await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 600_000 });
-    await MLStaking.updateRewardPerBlock(parseEther('10'));
+    const duration = dayjs().add(6, 'months');
+    let differenceInSeconds = duration.diff(dayjs(), 'second');
+
+    if(differenceInSeconds % 2) {
+      differenceInSeconds += 1;
+    }
+
+    await updateRewardToDistribute({
+      MLStaking,
+      USDC,
+      duration: differenceInSeconds,
+      rewardAmount: 10 * differenceInSeconds,
+    });
 
     const conectUser1 = await setupUser(user1, contracts);
     const conectUser2 = await setupUser(user2, contracts);
@@ -458,10 +530,14 @@ describe('MLStaking contract', () => {
       MLStaking: conectUser1.MLStaking,
     });
 
-    await mine(5);
+    await time.increase(5);
 
-    expect(await MLStaking.earnedToken1(user1)).to.be.equal(parseEther('50'));
-    expect(await MLStaking.earnedToken2(user1)).to.be.equal(parseEther('0.05'));
+    {
+      const earnedToken1 = await MLStaking.earnedToken1(user1);
+      const earnedToken2 = await MLStaking.earnedToken2(user1);
+      expect(earnedToken1).to.be.equal(parseEther('50'));
+      expect(earnedToken2).to.be.equal(parseEther('0.00025'));
+    }
 
     await stake({
       lockMonths: 2,
@@ -471,7 +547,7 @@ describe('MLStaking contract', () => {
       MLStaking: conectUser2.MLStaking,
     });
 
-    await mine(15);
+    await time.increase(15);
 
     const [
       earnedToken1User1,
@@ -486,10 +562,10 @@ describe('MLStaking contract', () => {
     ]);
 
     expect(earnedToken1User1).to.be.equal(parseEther('100.344827586206896550'));
-    expect(earnedToken2User1).to.be.equal(parseEther('0.15'));
+    expect(earnedToken2User1).to.be.equal(parseEther('0.00075'));
 
     expect(earnedToken1User2).to.be.equal(parseEther('139.655172413793103425'));
-    expect(earnedToken2User2).to.be.equal(parseEther('2.025000000000000000'));
+    expect(earnedToken2User2).to.be.equal(parseEther('0.010125'));
 
     await unstaked({
       MLStaking: conectUser1.MLStaking,
@@ -511,12 +587,24 @@ describe('MLStaking contract', () => {
     const { user1 } = accounts;
     const { MLStaking, USDC } = contracts;
 
-    await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 600_000 });
-    await MLStaking.updateRewardPerBlock(parseEther('10'));
+    const duration = dayjs().add(6, 'months');
+    let differenceInSeconds = duration.diff(dayjs(), 'second');
+
+    if(differenceInSeconds % 2) {
+      differenceInSeconds += 1;
+    }
+
+    await updateRewardToDistribute({
+      MLStaking,
+      USDC,
+      duration: differenceInSeconds,
+      rewardAmount: 10 * differenceInSeconds,
+    });
 
     const conectUser1 = await setupUser(user1, contracts);
 
     await USDC.transfer(user1, parseEther('100'));
+
 
     await stake({
       stakeAmount: 100,
@@ -525,15 +613,23 @@ describe('MLStaking contract', () => {
       MLStaking: conectUser1.MLStaking,
     });
 
-    await mine(5);
-
-    expect(await MLStaking.earnedToken1(user1)).to.be.equal(parseEther('50'));
-    expect(await MLStaking.earnedToken2(user1)).to.be.equal(parseEther('0.5'));
-
-    await mine(15);
-
     await conectUser1.USDC.increaseAllowance(MLStaking.address, ethers.constants.MaxInt256);
+
+    await time.increase(4);
+
+    {
+      const earnedToken1 = await MLStaking.earnedToken1(user1);
+      const earnedToken2 = await MLStaking.earnedToken2(user1);
+      expect(earnedToken1).to.be.equal(parseEther('50'));
+      expect(earnedToken2).to.be.equal(parseEther('0.0025'));
+    }
+
+    await time.increase(14);
+
     await expect(conectUser1.MLStaking.getReward(true)).to.be.emit(MLStaking, 'Staked');
+
+    const balanceStaked = await conectUser1.MLStaking.balanceStakedOf(user1);
+    expect(balanceStaked).to.be.equal(parseEther('300'));
   })
 
   it(
@@ -544,14 +640,25 @@ describe('MLStaking contract', () => {
       const { user1 } = accounts;
       const { MLStaking, USDC } = contracts;
 
-      await updateRewardToDistribute({ MLStaking, USDC, rewardAmount: 600_000 });
-      await MLStaking.updateRewardPerBlock(parseEther('10'));
+      const duration = dayjs().add(6, 'months');
+      let differenceInSeconds = duration.diff(dayjs(), 'second');
+
+      if(differenceInSeconds % 2) {
+        differenceInSeconds += 1;
+      }
+
+      await updateRewardToDistribute({
+        MLStaking,
+        USDC,
+        duration: differenceInSeconds,
+        rewardAmount: 10 * differenceInSeconds,
+      });
 
       const conectUser1 = await setupUser(user1, contracts);
 
       await USDC.transfer(user1, parseEther('1000000'));
 
-      for(let i = 0; i < 100; i++) {
+      for(let i = 0; i < 10; i++) {
         await stake({
           lockMonths: 1,
           stakeAmount: 10 + i,
@@ -559,7 +666,7 @@ describe('MLStaking contract', () => {
           USDC: conectUser1.USDC,
           MLStaking: conectUser1.MLStaking,
         });
-        
+
         await time.increase(60 * 60 * 24);
       }
 
@@ -568,7 +675,7 @@ describe('MLStaking contract', () => {
       await time.increase(
         stakeData.unlockDates[stakeData.unlockDates.length - 1].toNumber() + 60 * 60 * 24 * 30
       )
-      
+
       await unstaked({
         USDC: conectUser1.USDC,
         MLStaking: conectUser1.MLStaking,
